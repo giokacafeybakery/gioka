@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowDownToLine, ArrowUpFromLine, Camera, Pencil, X, Minus, Plus, ArrowRight } from "lucide-react";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { useInventory, useFlow, REASONS, type Mode } from "../store";
-import { Screen, Card, Thumb, BigButton, Chip, softSpring } from "../ui";
+import { Screen, Card, Thumb, BigButton, Chip, Sheet, Keypad, softSpring } from "../ui";
 import { num } from "@/lib/format";
 
 const MODES: { k: Mode; label: string; icon: React.ReactNode; color: string }[] = [
@@ -23,6 +23,9 @@ export default function Adjust() {
   const item = byKey(key);
   const photoRef = useRef<HTMLInputElement>(null);
   const photoRequired = user?.role === "inventario";
+  const [pad, setPad] = useState(false);
+  // Open the keypad right after the screen slides in (quantity is the first thing to fill)
+  useEffect(() => { const t = setTimeout(() => setPad(true), 420); return () => clearTimeout(t); }, []);
 
   // Arriving directly (deep link / center button) → start a fresh draft for this item
   useEffect(() => { if (item && flow.item?.key !== item.key) flow.start(item); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [item?.key]);
@@ -76,12 +79,13 @@ export default function Adjust() {
       <Card className="mt-4 p-4">
         <div className="text-[12px] font-semibold uppercase tracking-wide text-app-muted">{flow.mode === "set" ? "Nuevo stock" : "Cantidad"} ({item.unit})</div>
         <div className="flex items-center gap-3 mt-2">
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => step(-1)} className="w-12 h-12 rounded-full bg-black/5 grid place-items-center"><Minus size={20} /></motion.button>
-          <input autoFocus type="number" inputMode="decimal" min={0} step="any" placeholder="0" value={flow.qty} onChange={(e) => flow.set({ qty: e.target.value })}
-            className="flex-1 min-w-0 text-center text-[44px] font-bold tracking-tight bg-transparent outline-none placeholder:text-black/15" />
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => step(1)} className="w-12 h-12 rounded-full bg-ink text-white grid place-items-center"><Plus size={20} /></motion.button>
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => step(-1)} className="w-12 h-12 rounded-full bg-black/5 grid place-items-center shrink-0"><Minus size={20} /></motion.button>
+          <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPad(true)} className="flex-1 min-w-0 h-16 rounded-2xl bg-black/[0.04] text-center text-[40px] font-bold tracking-tight tabular-nums">
+            {flow.qty || <span className="text-black/20">0</span>}
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => step(1)} className="w-12 h-12 rounded-full bg-ink text-white grid place-items-center shrink-0"><Plus size={20} /></motion.button>
         </div>
-        <div className="flex gap-2 justify-center mt-2">{[1, 5, 10, 25].map((n) => <Chip key={n} onClick={() => step(n)}>+{n}</Chip>)}</div>
+        <div className="flex gap-2 justify-center mt-3">{[1, 5, 10, 25].map((n) => <Chip key={n} onClick={() => step(n)}>+{n}</Chip>)}</div>
         <AnimatePresence>
           {flow.qty !== "" && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -120,7 +124,12 @@ export default function Adjust() {
         <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">{REASONS[flow.mode].map((r) => <Chip key={r} active={flow.reason === r} onClick={() => flow.set({ reason: r })}><span className="capitalize">{r}</span></Chip>)}</div>
         <input className="mt-3 w-full h-12 rounded-2xl bg-white shadow-app px-4 text-[15px] outline-none placeholder:text-app-muted/80" placeholder="Detalle opcional: factura, proveedor, lote…" value={flow.notes} onChange={(e) => flow.set({ notes: e.target.value })} maxLength={500} />
       </div>
-      <div className="h-4" />
+      <div className="h-6" />
+
+      <Sheet open={pad} onClose={() => setPad(false)} title={flow.mode === "set" ? "Nuevo stock" : flow.mode === "out" ? "Cantidad que sale" : "Cantidad que entra"} subtitle={`${item.name} · stock actual ${num(item.stock, 2)} ${item.unit}`}>
+        <Keypad value={flow.qty} onChange={(v) => flow.set({ qty: v })} onDone={() => setPad(false)} unit={item.unit}
+          hint={flow.qty === "" ? "Ingresa la cantidad" : flow.mode === "out" && qty > item.stock ? <span className="text-berry">No puedes sacar más de lo que hay en stock</span> : <>Stock resultante: <b className="text-ink">{num(after, 2)} {item.unit}</b></>} />
+      </Sheet>
     </Screen>
   );
 }

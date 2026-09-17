@@ -41,6 +41,7 @@
 }
 
 html, body, #root { height: 100%; }
+@supports (height: 100dvh) { html, body, #root { height: 100dvh; } }
 body {
   @apply bg-cream text-ink font-sans antialiased;
   font-feature-settings: "ss01", "cv11";

@@ -75,7 +75,7 @@ export default function Confirm() {
             <Row label="Fecha y hora"><span className="flex items-center gap-1.5 tabular-nums"><Clock size={15} className="text-app-muted" />{now.toLocaleDateString("es", { day: "2-digit", month: "short" })} · {now.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span></Row>
           </Card>
         </motion.div>
-        <motion.div variants={rowVariants} className="text-center text-[12px] text-app-muted pt-1">Al confirmar, el movimiento queda registrado y visible para el administrador.</motion.div>
+        <motion.div variants={rowVariants} className="text-center text-[12px] text-app-muted pt-1 pb-4">Al confirmar, el movimiento queda registrado y visible para el administrador.</motion.div>
       </motion.div>
     </Screen>
   );

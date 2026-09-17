@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowDownToLine, ArrowUpFromLine, Camera, X } from "lucide-react";
+import { motion } from "motion/react";
+import { ArrowDownToLine, ArrowUpFromLine, Camera } from "lucide-react";
 import { useInventory, type Movement } from "../store";
-import { Screen, Chip, listVariants, rowVariants, EmptyState } from "../ui";
+import { Screen, Chip, Sheet, listVariants, rowVariants, EmptyState } from "../ui";
 import { num, dateTime, time } from "@/lib/format";
 
 const dayLabel = (iso: string) => {
@@ -52,25 +52,17 @@ export default function History() {
         </motion.div>
       )}
 
-      <AnimatePresence>
+      <Sheet open={!!open} onClose={() => setOpen(null)} title={open?.item_name} subtitle={open ? dateTime(open.created_at) : ""}>
         {open && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center" onClick={() => setOpen(null)}>
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 380, damping: 38 }} onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[520px] bg-white rounded-t-[28px] p-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] max-h-[88vh] overflow-y-auto">
-              <div className="mx-auto w-10 h-1.5 rounded-full bg-black/10 mb-4" />
-              <div className="flex items-start justify-between gap-3">
-                <div><div className="text-[20px] font-bold">{open.item_name}</div><div className="text-[13px] text-app-muted">{dateTime(open.created_at)}</div></div>
-                <button onClick={() => setOpen(null)} className="w-9 h-9 rounded-full bg-black/5 grid place-items-center"><X size={16} /></button>
-              </div>
-              {open.photo && <img src={open.photo} alt="Comprobante" className="mt-4 w-full rounded-2xl object-contain max-h-[45vh] bg-black/5" />}
-              <div className="mt-4 divide-y divide-black/5 text-[15px]">
-                {[["Movimiento", <span className={`font-bold ${open.qty < 0 ? "text-berry" : "text-mint-2"}`}>{open.qty > 0 ? "+" : ""}{num(open.qty, 3)} {open.unit}</span>], ["Motivo", <span className="capitalize">{open.reason}</span>], open.notes ? ["Detalle", open.notes] : null, ["Usuario", open.user_name || "—"], open.order_number ? ["Pedido", `#${open.order_number}`] : null]
-                  .filter(Boolean).map((r) => { const [l, v] = r as [string, React.ReactNode]; return <div key={l} className="flex justify-between gap-3 py-2.5"><span className="text-app-muted">{l}</span><span className="font-semibold text-right">{v}</span></div>; })}
-              </div>
-            </motion.div>
-          </motion.div>
+          <>
+            {open.photo && <img src={open.photo} alt="Comprobante" className="w-full rounded-2xl object-contain max-h-[42dvh] bg-black/5" />}
+            <div className="mt-3 divide-y divide-black/5 text-[15px]">
+              {([["Movimiento", <span className={`font-bold ${open.qty < 0 ? "text-berry" : "text-mint-2"}`}>{open.qty > 0 ? "+" : ""}{num(open.qty, 3)} {open.unit}</span>], ["Motivo", <span className="capitalize">{open.reason}</span>], open.notes ? ["Detalle", open.notes] : null, ["Usuario", open.user_name || "—"], open.order_number ? ["Pedido", `#${open.order_number}`] : null] as ([string, React.ReactNode] | null)[])
+                .filter((r): r is [string, React.ReactNode] => !!r).map(([l, v]) => <div key={l} className="flex justify-between gap-3 py-2.5"><span className="text-app-muted">{l}</span><span className="font-semibold text-right">{v}</span></div>)}
+            </div>
+          </>
         )}
-      </AnimatePresence>
+      </Sheet>
     </Screen>
   );
 }

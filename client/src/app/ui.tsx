@@ -1,7 +1,8 @@
 import { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
-import { ChevronLeft } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { ChevronLeft, X, Delete } from "lucide-react";
 import type { Item } from "./store";
 
 export const spring = { type: "spring", stiffness: 420, damping: 38, mass: 0.9 } as const;
@@ -29,7 +30,7 @@ export function Screen({ title, subtitle, back, right, children, footer, hero, p
         </div>
       )}
       {hero}
-      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${padded ? "px-4" : ""} pb-6`}>{children}</div>
+      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${padded ? "px-4" : ""} pb-8`}>{children}</div>
       {footer && <div className="shrink-0 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] bg-app/90 backdrop-blur border-t border-black/5">{footer}</div>}
     </div>
   );
@@ -115,5 +116,62 @@ export function EmptyState({ emoji = "🐼", title, hint }: { emoji?: string; ti
       <div className="font-bold text-[17px]">{title}</div>
       {hint && <div className="text-app-muted text-[14px] mt-1">{hint}</div>}
     </motion.div>
+  );
+}
+
+/* ---------------- Bottom sheet (portal, drag to dismiss) ---------------- */
+export function Sheet({ open, onClose, children, title, subtitle, right }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode; subtitle?: ReactNode; right?: ReactNode }) {
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div key="sheet" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-[2px] flex items-end justify-center font-app" onClick={onClose}>
+          <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 420, damping: 40 }}
+            drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }} onDragEnd={(_, i) => { if (i.offset.y > 110 || i.velocity.y > 600) onClose(); }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[520px] bg-white rounded-t-[28px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+18px)] max-h-[88dvh] flex flex-col shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.3)]">
+            <div className="mx-auto w-10 h-1.5 rounded-full bg-black/12 mb-3 shrink-0" />
+            {(title || right) && (
+              <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
+                <div className="min-w-0">{title && <div className="text-[20px] font-bold truncate">{title}</div>}{subtitle && <div className="text-[13px] text-app-muted">{subtitle}</div>}</div>
+                {right ?? <button onClick={onClose} className="w-9 h-9 rounded-full bg-black/5 grid place-items-center shrink-0" aria-label="Cerrar"><X size={16} /></button>}
+              </div>
+            )}
+            <div className="min-h-0 overflow-y-auto overscroll-contain">{children}</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+/* ---------------- Numeric keypad (replaces the system keyboard) ---------------- */
+export function Keypad({ value, onChange, onDone, unit, hint, quick = [1, 5, 10, 25] }: { value: string; onChange: (v: string) => void; onDone: () => void; unit?: string; hint?: ReactNode; quick?: number[] }) {
+  const press = (k: string) => {
+    if (k === "⌫") return onChange(value.slice(0, -1));
+    if (k === ".") return onChange(value.includes(".") ? value : (value || "0") + ".");
+    if (value === "0") return onChange(k);
+    if (value.replace(".", "").length >= 7) return;
+    onChange(value + k);
+  };
+  const add = (n: number) => onChange(String(+((Number(value || 0) + n).toFixed(3))));
+  return (
+    <div>
+      <div className="text-center py-2">
+        <div className="text-[52px] leading-none font-bold tracking-tight tabular-nums text-ink min-h-[56px]">{value || <span className="text-black/15">0</span>}<span className="text-[18px] font-semibold text-app-muted ml-1.5">{unit}</span></div>
+        {hint && <div className="text-[13px] text-app-muted mt-2 min-h-[18px]">{hint}</div>}
+      </div>
+      <div className="flex gap-2 justify-center mb-3">{quick.map((n) => <Chip key={n} onClick={() => add(n)}>+{n}</Chip>)}</div>
+      <div className="grid grid-cols-3 gap-2">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"].map((k) => (
+          <motion.button key={k} whileTap={{ scale: 0.92, backgroundColor: "rgba(0,0,0,0.08)" }} onClick={() => press(k)}
+            className={`h-[54px] rounded-2xl text-[24px] font-semibold ${k === "⌫" ? "text-berry bg-black/[0.04]" : "bg-black/[0.04] text-ink"}`}>
+            {k === "⌫" ? <Delete size={24} className="mx-auto" /> : k}
+          </motion.button>
+        ))}
+      </div>
+      <div className="mt-3"><BigButton variant="dark" onClick={onDone}>Listo</BigButton></div>
+    </div>
   );
 }
