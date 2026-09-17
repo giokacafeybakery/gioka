@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { ShoppingBag, ChefHat, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell } from "lucide-react";
+import { ShoppingBag, ChefHat, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell, Smartphone } from "lucide-react";
 import { PandaMark } from "./Logo";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
@@ -35,7 +35,7 @@ export default function AppShell() {
     { to: "/pos", label: "Punto de venta", short: "Vender", icon: <ShoppingBag size={22} />, roles: ["admin", "cajero"] },
     { to: "/pedidos", label: "Pedidos", short: "Pedidos", icon: <ChefHat size={22} />, roles: ["admin", "cajero", "cocina"] },
     { to: "/caja", label: "Caja", short: "Caja", icon: <Wallet size={22} />, roles: ["admin", "cajero"] },
-    { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin", "cajero", "inventario"], badge: low },
+    { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin", "cajero"], badge: low },
     { to: "/reportes", label: "Reportes", short: "Reportes", icon: <BarChart3 size={22} />, roles: ["admin"] },
     { to: "/admin", label: "Administración", short: "Admin", icon: <Settings2 size={22} />, roles: ["admin"] },
   ] as NavItem[]).filter((i) => user && i.roles.includes(user.role));
@@ -64,6 +64,12 @@ export default function AppShell() {
           </NavLink>
         ))}
         <div className="flex-1" />
+        {user?.role === "admin" && (
+          <NavLink to="/app" className="group relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="App móvil de inventario">
+            <Smartphone size={22} />
+            <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">App móvil de inventario</span>
+          </NavLink>
+        )}
         <a href="/pantalla" target="_blank" rel="noreferrer" className="group relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Pantalla de clientes">
           <MonitorPlay size={22} />
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>

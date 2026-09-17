@@ -13,17 +13,28 @@ import Admin from "@/pages/Admin";
 import Reportes from "@/pages/Reportes";
 import Pantalla from "@/pages/Pantalla";
 import Seguir from "@/pages/Seguir";
+import MobileShell from "@/app/MobileShell";
+import { homeFor } from "@/lib/nav";
+import AppHome from "@/app/pages/Home";
+import AppItem from "@/app/pages/ItemDetail";
+import AppAdjust from "@/app/pages/Adjust";
+import AppConfirm from "@/app/pages/Confirm";
+import AppDone from "@/app/pages/Done";
+import AppHistory from "@/app/pages/History";
+import AppAlerts from "@/app/pages/Alerts";
+import AppProfile from "@/app/pages/Profile";
+
 
 function Guard({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to={user.role === "cocina" ? "/pedidos" : user.role === "inventario" ? "/inventario" : "/pos"} replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to={homeFor(user.role)} replace />;
   return <Outlet />;
 }
 
 function Home() {
   const user = useAuth((s) => s.user);
-  return <Navigate to={!user ? "/login" : user.role === "cocina" ? "/pedidos" : user.role === "inventario" ? "/inventario" : "/pos"} replace />;
+  return <Navigate to={!user ? "/login" : homeFor(user.role)} replace />;
 }
 
 export default function App() {
@@ -34,6 +45,17 @@ export default function App() {
         <Route path="/pantalla" element={<Pantalla />} />
         <Route path="/seguir" element={<Seguir />} />
         <Route path="/seguir/:code" element={<Seguir />} />
+        <Route path="/app" element={<MobileShell />}>
+          <Route index element={<AppHome />} />
+          <Route path="ajustar" element={<AppHome pick />} />
+          <Route path="ajustar/confirmar" element={<AppConfirm />} />
+          <Route path="ajustar/listo" element={<AppDone />} />
+          <Route path="item/:key" element={<AppItem />} />
+          <Route path="item/:key/ajustar" element={<AppAdjust />} />
+          <Route path="historial" element={<AppHistory />} />
+          <Route path="alertas" element={<AppAlerts />} />
+          <Route path="perfil" element={<AppProfile />} />
+        </Route>
         <Route element={<Guard />}>
           <Route element={<AppShell />}>
             <Route element={<Guard roles={["admin", "cajero"]} />}>
@@ -41,7 +63,7 @@ export default function App() {
               <Route path="/caja" element={<Caja />} />
             </Route>
             <Route path="/pedidos" element={<Pedidos />} />
-            <Route element={<Guard roles={["admin", "cajero", "inventario"]} />}>
+            <Route element={<Guard roles={["admin", "cajero"]} />}>
               <Route path="/inventario" element={<Inventario />} />
             </Route>
             <Route element={<Guard roles={["admin"]} />}>

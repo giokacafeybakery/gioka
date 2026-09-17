@@ -5,6 +5,7 @@ import { PandaMark, Wordmark } from "@/components/Logo";
 import { api } from "@/lib/api";
 import { useAuth } from "@/store/auth";
 import type { User } from "@/lib/types";
+import { homeFor } from "@/lib/nav";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function Login() {
     try {
       const r = await api.post<{ token: string; user: User }>("/api/auth/login", { email: email.trim(), password });
       setSession(r.token, r.user);
-      nav(r.user.role === "cocina" ? "/pedidos" : r.user.role === "cajero" ? "/caja" : r.user.role === "inventario" ? "/inventario" : "/pos", { replace: true });
+      nav(homeFor(r.user.role), { replace: true });
     } catch (err) {
       setError((err as Error).message); setPassword("");
     } finally { setBusy(false); }

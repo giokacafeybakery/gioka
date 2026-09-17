@@ -18,7 +18,8 @@ export default defineConfig({
         theme_color: "#232323",
         background_color: "#F4EFE8",
         display: "standalone",
-        start_url: "/",
+        start_url: "/app",
+        scope: "/",
         lang: "es",
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -26,9 +27,9 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         shortcuts: [
-          { name: "Reportes", url: "/reportes", description: "Ventas y ganancias" },
-          { name: "Punto de venta", url: "/pos" },
-          { name: "Pedidos", url: "/pedidos" },
+          { name: "Ajustar stock", url: "/app/ajustar", description: "Registrar entrada o salida" },
+          { name: "Alertas de stock", url: "/app/alertas" },
+          { name: "Historial", url: "/app/historial" },
         ],
       },
       workbox: {

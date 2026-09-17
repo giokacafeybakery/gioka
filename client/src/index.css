@@ -2,6 +2,10 @@
 
 @theme {
   --font-sans: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-app: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Segoe UI", Roboto, system-ui, sans-serif;
+  --color-app: #f4f4f6;
+  --color-app-muted: #8a8a8e;
+  --shadow-app: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px -8px rgba(0, 0, 0, 0.12);
 
   --color-ink: #232323;
   --color-ink-2: #3a3a3a;
@@ -63,6 +67,10 @@ body {
 @utility pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-extrabold whitespace-nowrap; }
 @utility h-title { @apply text-[26px] leading-tight font-black tracking-tight text-ink; }
 @utility no-scrollbar { scrollbar-width: none; &::-webkit-scrollbar { display: none; } }
+/* Mobile app: hide number spinners, iOS-like tap feedback */
+.font-app input[type="number"]::-webkit-inner-spin-button, .font-app input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.font-app input[type="number"] { -moz-appearance: textfield; }
+.font-app { -webkit-tap-highlight-color: transparent; }
 
 @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }

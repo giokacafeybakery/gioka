@@ -85,11 +85,13 @@ Com **Imprimir al crear pedido** ativo, cada venda imprime o ticket do cliente (
 
 ---
 
-## PWA (celular / tablet)
+## App móvel (PWA) — inventário
 
-Abra o endereço do servidor no celular (mesma rede Wi‑Fi), toque em **"Adicionar à tela inicial"**. O app abre em tela cheia, com ícone do panda e funciona offline para consultar os últimos relatórios/estoque em cache.
+A PWA é o **app de inventário** (rota `/app`), com visual estilo iOS: lista de cartões, busca, filtros, barra inferior com botão central, transições animadas entre telas. Acessível **somente para os perfis inventário e admin** (cajero/cocina são redirecionados para o sistema de escritório).
 
-Atalhos do ícone: Reportes, Punto de venta, Pedidos.
+Fluxo: **Início** (lista + alertas) → **Detalhe do item** (estoque, mínimo, custo, valor, movimentos recentes) → **Ajustar** (entrada/saída/fixar, quantidade, foto do comprovante, motivo, detalhe) → **Confirmar** (antes → depois, foto, responsável, hora) → **Concluído** (animação de sucesso). Abas: Início, Alertas, ➕ Ajustar, Histórico (com foto do comprovante), Perfil.
+
+Instalação: abra o endereço do servidor no celular (mesma rede Wi‑Fi) e toque em **"Adicionar à tela inicial"** (iPhone: Compartilhar → Adicionar à tela de início). O app abre em tela cheia com o ícone do panda. Atalhos do ícone: Ajustar stock, Alertas, Histórico. O admin também acessa pelo ícone 📱 da barra lateral do sistema.
 
 ---
 
