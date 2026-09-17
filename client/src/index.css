@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+
+  --color-ink: #232323;
+  --color-ink-2: #3a3a3a;
+  --color-ink-3: #5b5b5b;
+  --color-muted: #8a8580;
+  --color-line: #e8e1d8;
+  --color-cream: #f4efe8;
+  --color-cream-2: #ece5db;
+  --color-paper: #ffffff;
+
+  --color-peach: #f2915a;
+  --color-peach-2: #e97f45;
+  --color-peach-soft: #fde7d9;
+  --color-mint: #4fbd91;
+  --color-mint-2: #3aa87c;
+  --color-mint-soft: #ddf5ea;
+  --color-pink: #f5a3b5;
+  --color-pink-soft: #fce4ea;
+  --color-sky: #5fbfe6;
+  --color-sky-soft: #e0f4fb;
+  --color-butter: #f2b84b;
+  --color-butter-soft: #fdf1d4;
+  --color-lilac: #b48cf2;
+  --color-lilac-soft: #ede4fc;
+  --color-berry: #e5484d;
+  --color-berry-soft: #fde3e4;
+
+  --radius-xl2: 1.25rem;
+  --radius-xl3: 1.75rem;
+  --shadow-soft: 0 1px 2px rgba(35, 35, 35, 0.04), 0 8px 24px -12px rgba(35, 35, 35, 0.12);
+  --shadow-lift: 0 2px 4px rgba(35, 35, 35, 0.05), 0 16px 40px -16px rgba(35, 35, 35, 0.22);
+  --shadow-pop: 0 24px 60px -20px rgba(35, 35, 35, 0.35);
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-cream text-ink font-sans antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+* { scrollbar-width: thin; scrollbar-color: #d8d0c5 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #d8d0c5; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@utility card { @apply bg-paper rounded-xl2 shadow-soft border border-line/60; }
+@utility btn { & > svg { flex-shrink: 0; } @apply inline-flex items-center justify-center gap-2 font-bold rounded-xl px-4 h-11 transition-all duration-150 select-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] whitespace-nowrap; }
+@utility btn-primary { @apply btn bg-peach text-white hover:bg-peach-2 shadow-[0_6px_16px_-6px_rgba(242,145,90,0.7)]; }
+@utility btn-dark { @apply btn bg-ink text-white hover:bg-ink-2; }
+@utility btn-mint { @apply btn bg-mint text-white hover:bg-mint-2 shadow-[0_6px_16px_-6px_rgba(79,189,145,0.7)]; }
+@utility btn-ghost { @apply btn bg-transparent text-ink-2 hover:bg-cream-2; }
+@utility btn-soft { @apply btn bg-cream text-ink hover:bg-cream-2 border border-line; }
+@utility btn-danger { @apply btn bg-berry-soft text-berry hover:bg-berry hover:text-white; }
+@utility btn-sm { @apply h-9 px-3 text-sm rounded-lg; }
+@utility btn-lg { @apply h-14 px-6 text-lg rounded-2xl; }
+@utility btn-icon { @apply btn w-10 h-10 rounded-xl; padding: 0 !important; & > svg { flex-shrink: 0; } }
+@utility input { @apply w-full h-11 rounded-xl border border-line bg-paper px-3.5 text-[15px] font-semibold text-ink placeholder:text-muted/70 placeholder:font-medium outline-none transition focus:border-peach focus:ring-4 focus:ring-peach/15 disabled:bg-cream; }
+@utility label { @apply block text-[12px] font-extrabold uppercase tracking-wider text-muted mb-1.5; }
+@utility chip { @apply inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[13px] font-bold whitespace-nowrap; }
+@utility pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-extrabold whitespace-nowrap; }
+@utility h-title { @apply text-[26px] leading-tight font-black tracking-tight text-ink; }
+@utility no-scrollbar { scrollbar-width: none; &::-webkit-scrollbar { display: none; } }
+
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(79,189,145,0.55); } 100% { box-shadow: 0 0 0 16px rgba(79,189,145,0); } }
+@keyframes wiggle { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@utility anim-fade-up { animation: fade-up .25s ease-out both; }
+@utility anim-pop { animation: pop-in .2s ease-out both; }
+@utility anim-ring { animation: pulse-ring 1.4s ease-out infinite; }
+@utility anim-wiggle { animation: wiggle 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+
+/* ---- Receipt print (80mm thermal, browser mode) ---- */
+@media print {
+  body * { visibility: hidden !important; }
+  #print-root, #print-root * { visibility: visible !important; }
+  #print-root { position: absolute !important; left: 0; top: 0; width: 72mm; }
+  @page { size: 80mm auto; margin: 3mm; }
+}
+#print-root { display: none; background: #fff; }
+@media print { #print-root { display: block !important; } }
+.receipt { font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35; color: #000; width: 72mm; }
+.receipt .c { text-align: center; }
+.receipt .b { font-weight: 700; }
+.receipt .xl { font-size: 20px; font-weight: 800; }
+.receipt .lg { font-size: 15px; font-weight: 800; }
+.receipt .row { display: flex; justify-content: space-between; gap: 8px; }
+.receipt .hr { border-top: 1px dashed #000; margin: 6px 0; }
+.receipt .hr2 { border-top: 2px solid #000; margin: 6px 0; }

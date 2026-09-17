@@ -1,0 +1,12 @@
+node_modules
+dist
+server/data/*.db
+server/data/*.db-*
+server/uploads/*
+!server/uploads/.gitkeep
+.env
+*.log
+client/dev-dist
+.DS_Store
+Thumbs.db
+client/tsconfig.tsbuildinfo
