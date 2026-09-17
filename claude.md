@@ -25,7 +25,7 @@ Monorepo npm workspaces: `server/` (Node 24 + Express 5 + Socket.IO + `node:sqli
 
 ## Regla de trabajo: publicar cada cambio
 Después de CADA alteración al proyecto (código, docs, config), hacer commit y `git push origin main` sin que el usuario lo pida.
-Remote: `https://github.com/giokacafeybakery/gioka.git` (rama `main`). Si el push falla por permisos, avisar al usuario en una línea y continuar.
+Remote: `https://github.com/giokacafeybakery/gioka.git` (rama `main`, repo privado). Cuenta con acceso: `stivencortez2026-afk` — si `gh auth status` muestra otra activa, ejecutar `gh auth switch --user stivencortez2026-afk` antes del push. Si el push falla, avisar al usuario en una línea y continuar.
 Nunca commitear `.env`, `server/data/*.db`, `server/uploads/*` ni tokens/credenciales (ya están en `.gitignore`).
 
 ## Resumen del proyecto y de lo acordado (historial)
@@ -36,4 +36,4 @@ Nunca commitear `.env`, `server/data/*.db`, `server/uploads/*` ni tokens/credenc
 - Acceso: login por **correo + contraseña** (reemplazó al PIN). Los perfiles se crean solo desde Administración → Equipo. Demo: admin@gioka.com/admin123, cajero@gioka.com/cajero123, cocina@gioka.com/cocina123.
 - Caja: para vender hay que **abrir la caja** registrando monto inicial + correo + contraseña del cajero (el turno queda a su nombre). Con caja cerrada el PDV bloquea vender/cobrar (cliente y servidor). Solo quien abrió la caja o un admin puede cerrarla.
 - Supabase: el usuario pegó un token personal (`sbp_…`) en el chat; NO se guardó en ningún archivo. Se le recomendó revocarlo. Pendiente definir qué quiere (migrar a Postgres, desplegar, auth o backup).
-- GitHub: repo `giokacafeybakery/gioka`. `gh` está autenticado como `bigbenerp` sin acceso al repo y no hay llave SSH → el push queda pendiente hasta que el usuario dé acceso o autentique la cuenta correcta.
+- GitHub: repo privado `giokacafeybakery/gioka`, publicado el 2026-09-17 con la cuenta `stivencortez2026-afk` (tiene push). Cada cambio se sube a `main`.
