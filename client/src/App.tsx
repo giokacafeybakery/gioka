@@ -17,13 +17,13 @@ import Seguir from "@/pages/Seguir";
 function Guard({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to={user.role === "cocina" ? "/pedidos" : "/pos"} replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to={user.role === "cocina" ? "/pedidos" : user.role === "inventario" ? "/inventario" : "/pos"} replace />;
   return <Outlet />;
 }
 
 function Home() {
   const user = useAuth((s) => s.user);
-  return <Navigate to={!user ? "/login" : user.role === "cocina" ? "/pedidos" : "/pos"} replace />;
+  return <Navigate to={!user ? "/login" : user.role === "cocina" ? "/pedidos" : user.role === "inventario" ? "/inventario" : "/pos"} replace />;
 }
 
 export default function App() {
@@ -39,9 +39,11 @@ export default function App() {
             <Route element={<Guard roles={["admin", "cajero"]} />}>
               <Route path="/pos" element={<Pos />} />
               <Route path="/caja" element={<Caja />} />
-              <Route path="/inventario" element={<Inventario />} />
             </Route>
             <Route path="/pedidos" element={<Pedidos />} />
+            <Route element={<Guard roles={["admin", "cajero", "inventario"]} />}>
+              <Route path="/inventario" element={<Inventario />} />
+            </Route>
             <Route element={<Guard roles={["admin"]} />}>
               <Route path="/admin" element={<Admin />} />
               <Route path="/reportes" element={<Reportes />} />

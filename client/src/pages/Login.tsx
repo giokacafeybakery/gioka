@@ -22,7 +22,7 @@ export default function Login() {
     try {
       const r = await api.post<{ token: string; user: User }>("/api/auth/login", { email: email.trim(), password });
       setSession(r.token, r.user);
-      nav(r.user.role === "cocina" ? "/pedidos" : r.user.role === "cajero" ? "/caja" : "/pos", { replace: true });
+      nav(r.user.role === "cocina" ? "/pedidos" : r.user.role === "cajero" ? "/caja" : r.user.role === "inventario" ? "/inventario" : "/pos", { replace: true });
     } catch (err) {
       setError((err as Error).message); setPassword("");
     } finally { setBusy(false); }
@@ -67,7 +67,7 @@ export default function Login() {
           <button type="submit" disabled={busy || !email || !password} className="btn-primary btn-lg w-full mt-6">Entrar <ArrowRight size={20} /></button>
 
           <div className="mt-8 text-center text-xs text-muted font-semibold leading-relaxed">
-            Cuentas de demo · <b>admin@gioka.com</b> / admin123<br /><b>cajero@gioka.com</b> / cajero123 · <b>cocina@gioka.com</b> / cocina123
+            Cuentas de demo · <b>admin@gioka.com</b> / admin123<br /><b>cajero@gioka.com</b> / cajero123 · <b>cocina@gioka.com</b> / cocina123<br /><b>inventario@gioka.com</b> / inventario123
           </div>
         </form>
       </div>

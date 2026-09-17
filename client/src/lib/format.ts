@@ -35,7 +35,7 @@ export const TYPE: Record<OrderType, { label: string; short: string }> = {
   dinein:   { label: "En mesa", short: "Mesa" },
 };
 export const PAYMENT: Record<PaymentMethod, string> = { cash: "Efectivo", card: "Tarjeta", qr: "QR / Transf." };
-export const ROLE: Record<Role, string> = { admin: "Administrador", cajero: "Cajero", cocina: "Cocina" };
+export const ROLE: Record<Role, string> = { admin: "Administrador", cajero: "Cajero", cocina: "Cocina", inventario: "Gestor de inventario" };
 
 export const greeting = () => {
   const h = new Date().getHours();

@@ -38,7 +38,7 @@ app.use((req, _res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api/orders", orderRoutes(io));
-app.use("/api/inventory", requireAuth, requireRole("admin", "cajero"), inventoryRoutes(io));
+app.use("/api/inventory", requireAuth, requireRole("admin", "cajero", "inventario"), inventoryRoutes(io));
 app.use("/api/reports", requireAuth, requireRole("admin"), reportRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/print", requireAuth, printRoutes);

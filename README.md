@@ -34,8 +34,13 @@ npm run dev          # server em :3001 e client em :5173
 | admin@gioka.com     | admin123   | Admin   | Tudo: edição de produtos, insumos, estoque, equipe, ajustes, relatórios |
 | cajero@gioka.com    | cajero123  | Cajero  | PDV, pedidos, caixa, inventário **somente leitura**                    |
 | cocina@gioka.com    | cocina123  | Cocina  | Somente tela de pedidos (KDS)                                          |
+| inventario@gioka.com | inventario123 | Gestor de inventário | Entradas/saídas de estoque e insumos, **sempre com foto do comprovante**; não vê vendas nem menu |
 
 Os perfis são criados e editados **somente pelo administrador** em **Administración → Equipo** (nome, correo, senha, perfil). Troque as senhas de demo no primeiro uso.
+
+### Gestor de inventário
+
+Perfil dedicado a repor e baixar estoque. Cada movimento registra **foto do comprovante (obrigatória)**, **data/hora automática**, usuário e **motivo opcional**. O administrador audita tudo em **Administración → Ajustes de stock** (com visualização da foto). Para o admin a foto é opcional.
 
 ### Fluxo do caixa
 

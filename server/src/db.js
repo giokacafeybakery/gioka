@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina')),
+  role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS stock_movements (
   item_id INTEGER NOT NULL,
   qty REAL NOT NULL,
   reason TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  photo TEXT,
   order_id INTEGER,
   user_id INTEGER,
   created_at TEXT NOT NULL
@@ -193,7 +195,7 @@ if (!userCols.includes("email")) {
   db.exec(`
     CREATE TABLE users_new (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina')), active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
+      role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')), active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
     INSERT INTO users_new(id,name,email,password_hash,role,active,created_at)
       SELECT id, name, role || id || '@gioka.local', '', role, active, created_at FROM users;
     DROP TABLE users; ALTER TABLE users_new RENAME TO users;
@@ -205,11 +207,35 @@ if (!userCols.includes("email")) {
   db.exec("PRAGMA foreign_keys = ON");
 }
 
+// Migration: allow the 'inventario' role (SQLite CHECK constraints need a table rebuild)
+const usersSql = get("SELECT sql FROM sqlite_master WHERE name='users'")?.sql || "";
+if (!usersSql.includes("'inventario'")) {
+  db.exec("PRAGMA foreign_keys = OFF");
+  db.exec(`
+    CREATE TABLE users_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')), active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
+    INSERT INTO users_new SELECT id,name,email,password_hash,role,active,created_at FROM users;
+    DROP TABLE users; ALTER TABLE users_new RENAME TO users;`);
+  db.exec("PRAGMA foreign_keys = ON");
+}
+// Migration: photo + notes on stock movements
+const movCols = all("PRAGMA table_info(stock_movements)").map((c) => c.name);
+if (!movCols.includes("photo")) db.exec("ALTER TABLE stock_movements ADD COLUMN photo TEXT");
+if (!movCols.includes("notes")) db.exec("ALTER TABLE stock_movements ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+
 if (!get("SELECT 1 FROM users LIMIT 1")) {
   const t = now();
   run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Administrador", "admin@gioka.com", hashPassword("admin123"), "admin", t);
   run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Cajero", "cajero@gioka.com", hashPassword("cajero123"), "cajero", t);
   run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Cocina", "cocina@gioka.com", hashPassword("cocina123"), "cocina", t);
+  run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Inventario", "inventario@gioka.com", hashPassword("inventario123"), "inventario", t);
+}
+// One-time: add the demo inventory manager to databases created before the role existed
+if (!get("SELECT 1 FROM settings WHERE key='seed_inventario_done'")) {
+  if (!get("SELECT 1 FROM users WHERE role='inventario'") && !get("SELECT 1 FROM users WHERE email='inventario@gioka.com'"))
+    run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Inventario", "inventario@gioka.com", hashPassword("inventario123"), "inventario", now());
+  setSetting("seed_inventario_done", true);
 }
 
 if (!get("SELECT 1 FROM categories LIMIT 1")) {

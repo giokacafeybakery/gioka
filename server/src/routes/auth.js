@@ -44,7 +44,7 @@ r.get("/users", requireAuth, requireRole("admin"), (_req, res) => {
 
 r.post("/users", requireAuth, requireRole("admin"), (req, res) => {
   const { name, email, password, role } = req.body || {};
-  if (!name || !["admin", "cajero", "cocina"].includes(role)) return res.status(400).json({ error: "Datos inválidos" });
+  if (!name || !["admin", "cajero", "cocina", "inventario"].includes(role)) return res.status(400).json({ error: "Datos inválidos" });
   if (!EMAIL_RE.test(String(email || ""))) return res.status(400).json({ error: "Correo inválido" });
   if (!password || String(password).length < 6) return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
   if (get("SELECT 1 FROM users WHERE email=?", email.trim())) return res.status(400).json({ error: "Ese correo ya está registrado" });

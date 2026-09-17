@@ -56,7 +56,7 @@ export default function Pedidos() {
     { status: "pending", hint: "Por preparar" }, { status: "preparing", hint: "En cocina" }, { status: "ready", hint: "Para entregar" },
   ];
   const history = orders.filter((o) => o.status === "delivered" || o.status === "cancelled");
-  const canManage = user?.role !== "cocina";
+  const canManage = user?.role === "admin" || user?.role === "cajero";
 
   const Card = ({ o }: { o: Order }) => {
     const st = STATUS[o.status];

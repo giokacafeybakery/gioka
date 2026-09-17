@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, get, all, run, now, getSettings } from "../db.js";
-import { requireAuth } from "./auth.js";
+import { requireAuth, requireRole } from "./auth.js";
 import { receiptBuffer, sendToPrinter } from "../escpos.js";
 
 const ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -93,7 +93,7 @@ export default function ordersRoutes(io) {
     res.json(rows.map(publicView));
   });
 
-  r.use(requireAuth);
+  r.use(requireAuth, requireRole("admin", "cajero", "cocina"));
 
   r.get("/", (req, res) => {
     const { status, date, active } = req.query;

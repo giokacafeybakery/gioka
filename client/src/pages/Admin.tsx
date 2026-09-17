@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Pencil, Trash2, ImagePlus, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Toggle, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -8,8 +8,9 @@ import type { Category, Ingredient, Product, Settings, User, Role } from "@/lib/
 import { useSettings } from "@/store/settings";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
+import { StockLog } from "@/components/StockLog";
 
-type Tab = "products" | "categories" | "users" | "settings";
+type Tab = "products" | "categories" | "stock" | "users" | "settings";
 const EMOJIS = ["☕", "🍵", "🧋", "🥤", "🧃", "🍹", "🍦", "🍨", "🍧", "🍰", "🧁", "🍩", "🍪", "🍫", "🍓", "🍌", "🥐", "🥖", "🥯", "🍞", "🥧", "🥪", "🥑", "🧀", "🍕", "🌮", "🥗", "🍳", "💧", "🫖", "🍽️", "🐼"];
 
 export default function Admin() {
@@ -20,6 +21,7 @@ export default function Admin() {
         <Segmented value={tab} onChange={setTab} options={[
           { value: "products", label: <span className="flex items-center gap-1.5"><Package size={15} /> Productos</span> },
           { value: "categories", label: <span className="flex items-center gap-1.5"><Tags size={15} /> Categorías</span> },
+          { value: "stock", label: <span className="flex items-center gap-1.5"><ClipboardList size={15} /> Ajustes de stock</span> },
           { value: "users", label: <span className="flex items-center gap-1.5"><Users size={15} /> Equipo</span> },
           { value: "settings", label: <span className="flex items-center gap-1.5"><Store size={15} /> Ajustes</span> },
         ]} />
@@ -27,6 +29,12 @@ export default function Admin() {
       <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6">
         {tab === "products" && <Products />}
         {tab === "categories" && <Categories />}
+        {tab === "stock" && (
+          <div>
+            <p className="text-sm font-semibold text-muted mb-3">Entradas y salidas registradas manualmente por el gestor de inventario y administradores, con foto del comprobante, hora, usuario y motivo.</p>
+            <StockLog manualOnly />
+          </div>
+        )}
         {tab === "users" && <UsersTab />}
         {tab === "settings" && <SettingsTab />}
       </div>

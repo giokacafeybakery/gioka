@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { getSettings } from "../db.js";
+import { requireRole } from "./auth.js";
 import { loadOrder } from "./orders.js";
 import { receiptBuffer, sendToPrinter, EscPos } from "../escpos.js";
 
 const r = Router();
+r.use(requireRole("admin", "cajero", "cocina"));
 
 async function send(buffer) {
   const s = getSettings();

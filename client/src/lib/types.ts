@@ -1,4 +1,4 @@
-export type Role = "admin" | "cajero" | "cocina";
+export type Role = "admin" | "cajero" | "cocina" | "inventario";
 export interface User { id: number; name: string; email: string; role: Role; active?: boolean; created_at?: string }
 
 export interface Category { id: number; name: string; emoji: string; color: string; sort: number }
