@@ -72,7 +72,7 @@ export default function Seguir() {
           <div className="card p-5">
             <div className="flex justify-between text-xs font-extrabold uppercase tracking-wider text-muted mb-3"><span>{TYPE[order.type].label}{order.customer_name && ` · ${order.customer_name}`}</span><span>{time(order.created_at)}</span></div>
             <ul className="divide-y divide-line">
-              {order.items.map((it, i) => <li key={i} className="py-2 flex items-center gap-3 text-sm"><span className="text-xl">{it.emoji}</span><span className="font-bold flex-1">{it.name}</span><span className="font-black text-muted">×{it.qty}</span></li>)}
+              {order.items.map((it, i) => <li key={i} className="py-2 flex items-center gap-3 text-sm"><span className="text-xl">{it.emoji}</span><span className="font-bold flex-1">{it.name}{it.options?.length ? <span className="block text-xs text-muted font-semibold">{it.options.join(", ")}</span> : null}</span><span className="font-black text-muted">×{it.qty}</span></li>)}
             </ul>
             <div className="mt-3 pt-3 border-t border-line flex justify-between items-baseline"><span className="font-bold text-muted text-sm">{order.paid ? "Pagado" : "Pago pendiente"}</span><span className="text-xl font-black">{money(order.total)}</span></div>
           </div>

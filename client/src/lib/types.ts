@@ -4,10 +4,16 @@ export interface User { id: number; name: string; email: string; role: Role; act
 export interface Category { id: number; name: string; emoji: string; color: string; sort: number }
 
 export interface RecipeLine { ingredient_id: number; qty: number; name?: string; unit?: string }
+/** One choice inside an option group; `price` is the extra added to the product price (0 = included). */
+export interface OptionChoice { name: string; price: number }
+/** Sabores / adicionales: `single` = pick one (flavor, size), `multi` = pick any (toppings). */
+export interface OptionGroup { name: string; type: "single" | "multi"; required: boolean; choices: OptionChoice[] }
+/** A choice the cashier picked for an order line. */
+export interface SelectedOption { group: string; name: string; price: number }
 export interface Product {
   id: number; category_id: number | null; name: string; description: string; price: number; cost: number;
   emoji: string; image: string | null; active: boolean; track_stock: boolean; stock: number; min_stock: number; sort: number;
-  category_name?: string; category_emoji?: string; category_color?: string; recipe: RecipeLine[];
+  category_name?: string; category_emoji?: string; category_color?: string; recipe: RecipeLine[]; options: OptionGroup[];
 }
 
 export interface Ingredient { id: number; name: string; unit: string; stock: number; min_stock: number; cost: number; supplier: string; used_in?: number }
@@ -16,7 +22,8 @@ export type OrderType = "takeaway" | "delivery" | "dinein";
 export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled";
 export type PaymentMethod = "cash" | "card" | "qr";
 
-export interface OrderItem { id?: number; product_id: number | null; name: string; emoji: string; price: number; qty: number; notes: string }
+/** `price` is the unit price already including the extras of `options`. */
+export interface OrderItem { id?: number; product_id: number | null; name: string; emoji: string; price: number; qty: number; notes: string; options?: SelectedOption[] }
 export interface Order {
   id: number; code: string; daily_number: number; type: OrderType; customer_name: string; customer_phone: string; table_no: string;
   customer_address: string; customer_reference: string;
@@ -26,7 +33,7 @@ export interface Order {
 }
 export interface PublicOrder {
   code: string; daily_number: number; status: OrderStatus; type: OrderType; customer_name: string; created_at: string;
-  ready_at: string | null; delivered_at: string | null; total: number; paid: boolean; items: { name: string; qty: number; emoji: string }[];
+  ready_at: string | null; delivered_at: string | null; total: number; paid: boolean; items: { name: string; qty: number; emoji: string; options?: string[] }[];
 }
 
 export interface Settings {

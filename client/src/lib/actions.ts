@@ -2,7 +2,7 @@ import { api, isOffline, ApiError } from "@/lib/api";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { useCash } from "@/store/cash";
-import { cartTotals, type CartLine } from "@/store/cart";
+import { cartTotals, lineUnitPrice, type CartLine } from "@/store/cart";
 import { money } from "@/lib/format";
 import type { CashSession, Ingredient, Order, OrderStatus, OrderType, PaymentMethod, Product, User } from "@/lib/types";
 import type { Movement } from "@/app/store";
@@ -93,7 +93,8 @@ export async function createOrder(input: NewOrder): Promise<Done<Order>> {
   const at = nowISO();
   const id = uuid();
   const paid = !!input.payment_method;
-  const items = input.lines.map((l) => ({ product_id: l.product.id, name: l.product.name, emoji: l.product.emoji, price: l.product.price, qty: l.qty, notes: l.notes }));
+  // Unit price includes the extras of the chosen sabores/adicionales; the selection travels with the item (KDS, ticket).
+  const items = input.lines.map((l) => ({ product_id: l.product.id, name: l.product.name, emoji: l.product.emoji, price: lineUnitPrice(l), qty: l.qty, notes: l.notes, options: l.options || [] }));
   const cash_received = paid && input.payment_method === "cash" && input.cash_received != null ? input.cash_received : null;
   const local = {
     id: -Date.now(), client_id: id, code: genCode(settings?.order_prefix || "G"), daily_number: nextDailyNumber(), type: input.type,
@@ -104,7 +105,7 @@ export async function createOrder(input: NewOrder): Promise<Done<Order>> {
   } as Order;
   const body = {
     type: input.type, customer_name: input.customer_name, customer_phone: input.customer_phone, table_no: input.table_no, ...(input.extra || {}), notes: input.notes, discount: input.discount,
-    payment_method: input.payment_method, cash_received, items: items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price })),
+    payment_method: input.payment_method, cash_received, items: items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price, options: i.options })),
   };
   return perform<Order>({ id, kind: "order.create", at, user: { id: user.id, name: user.name }, label: `Pedido #${local.daily_number} · ${money(local.total)}`, body, local }, local,
     (o) => { bus.emit("order:created", o); bus.emit("stock:updated", { item_type: "product", item: null }); });

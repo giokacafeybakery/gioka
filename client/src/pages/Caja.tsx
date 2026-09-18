@@ -6,6 +6,7 @@ import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
 import { closeCash, payOrder } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
+import { itemLabel } from "@/lib/options";
 import { money, STATUS, TYPE, time, dateTime, PAYMENT } from "@/lib/format";
 import type { CashSession, Order, PaymentMethod } from "@/lib/types";
 import { toast } from "@/store/toast";
@@ -72,7 +73,7 @@ export default function Caja() {
               {unpaid.map((o) => (
                 <div key={o.id} className="card p-3.5 min-w-[240px] shrink-0 border-berry/30">
                   <div className="flex justify-between items-baseline"><span className="font-black text-lg">#{o.daily_number} <span className="text-sm text-ink-3 font-extrabold">{o.customer_name}</span></span><span className="font-black">{money(o.total)}</span></div>
-                  <div className="text-xs font-semibold text-muted truncate">{TYPE[o.type].label}{o.table_no && ` · Mesa ${o.table_no}`} · {o.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
+                  <div className="text-xs font-semibold text-muted truncate">{TYPE[o.type].label}{o.table_no && ` · Mesa ${o.table_no}`} · {o.items.map((i) => `${i.qty}× ${itemLabel(i)}`).join(", ")}</div>
                   <div className="mt-3 flex gap-2"><span className={`pill ${STATUS[o.status].soft} ${STATUS[o.status].text}`}>{STATUS[o.status].label}</span><button className="btn btn-sm btn-primary ml-auto" disabled={!session} onClick={() => setPayFor(o)}>Cobrar</button></div>
                 </div>
               ))}

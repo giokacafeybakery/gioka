@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { QRCodeSVG } from "qrcode.react";
 import type { Order, Settings } from "@/lib/types";
 import { PAYMENT, TYPE } from "@/lib/format";
+import { optionsSummary } from "@/lib/options";
 import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
 import { toast } from "@/store/toast";
@@ -69,6 +70,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
           ) : (
             <div className="row"><span>{it.qty} × {it.name}</span><span>{m(it.price * it.qty, cur)}</span></div>
           )}
+          {optionsSummary(it.options) && <div className={kitchen ? "b" : ""} style={{ paddingLeft: 12 }}>› {optionsSummary(it.options, " | ")}</div>}
           {it.notes && <div style={{ paddingLeft: 12 }}>» {it.notes}</div>}
         </div>
       ))}

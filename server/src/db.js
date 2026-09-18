@@ -223,6 +223,9 @@ ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS client_id TEXT;
 -- Delivery: dirección y punto de referencia para que el repartidor ubique al cliente con la factura.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_address TEXT NOT NULL DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEFAULT '';
+-- Sabores y adicionales: grupos de opciones del producto (JSON) y la selección guardada en cada línea del pedido.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
 CREATE UNIQUE INDEX IF NOT EXISTS orders_client_id ON orders(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS movements_client_id ON stock_movements(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS cash_sessions_client_id ON cash_sessions(client_id);
@@ -324,17 +327,21 @@ async function seedCatalog() {
   ];
   for (const i of ings) await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at) VALUES(?,?,?,?,?,?,?)", ...i, t);
 
+  const choices = (...names) => names.map((n) => (Array.isArray(n) ? { name: n[0], price: n[1] } : { name: n, price: 0 }));
+  const FLAVOR = (type) => ({ name: "Sabor", type, required: true, choices: choices("Vainilla", "Chocolate", "Fresa", "Pistacho", "Dulce de leche") });
+  const TOPPINGS = { name: "Adicionales", type: "multi", required: false, choices: choices(["Chispas", 0.5], ["Salsa de chocolate", 0.5], ["Crema batida", 0.7], ["Nueces", 0.8]) };
+  const MILK = { name: "Leche", type: "single", required: false, choices: choices("Entera", ["Deslactosada", 0.3], ["Almendra", 0.6]) };
   const catId = async (n) => (await get("SELECT id FROM categories WHERE name=?", n)).id;
   const ingId = async (n) => (await get("SELECT id FROM ingredients WHERE name=?", n)).id;
   const prods = [
-    // name, desc, price, cost, emoji, cat, track, stock, min, recipe
+    // name, desc, price, cost, emoji, cat, track, stock, min, recipe, options (sabores / adicionales)
     ["Espresso", "Doble shot de café de origen, intenso y aromático.", 2.5, 0.6, "☕", "Café", 0, 0, 0, [["Café en grano", 0.018]]],
-    ["Cappuccino", "Espresso con leche vaporizada y espuma cremosa.", 3.8, 1.0, "☕", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.15], ["Vasos 12oz", 1]]],
+    ["Cappuccino", "Espresso con leche vaporizada y espuma cremosa.", 3.8, 1.0, "☕", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.15], ["Vasos 12oz", 1]], [MILK]],
     ["Latte Vainilla", "Suave latte con jarabe de vainilla y arte latte.", 4.2, 1.1, "🍵", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.2], ["Vasos 12oz", 1]]],
     ["Mocha Panda", "Chocolate, espresso y leche con crema batida.", 4.9, 1.4, "🍫", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.18], ["Chocolate", 0.03], ["Vasos 12oz", 1]]],
     ["Cold Brew", "Extracción en frío 18 h, servido con hielo.", 4.0, 0.9, "🧊", "Café", 0, 0, 0, [["Café en grano", 0.025], ["Vasos 12oz", 1]]],
-    ["Helado 1 bola", "Elige tu sabor favorito en cono o vaso.", 2.8, 0.7, "🍦", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.05], ["Crema de leche", 0.03]]],
-    ["Helado 2 bolas", "Dos sabores artesanales en cono de waffle.", 4.5, 1.2, "🍨", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.1], ["Crema de leche", 0.06]]],
+    ["Helado 1 bola", "Elige tu sabor favorito en cono o vaso.", 2.8, 0.7, "🍦", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.05], ["Crema de leche", 0.03]], [FLAVOR("single"), TOPPINGS]],
+    ["Helado 2 bolas", "Dos sabores artesanales en cono de waffle.", 4.5, 1.2, "🍨", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.1], ["Crema de leche", 0.06]], [FLAVOR("multi"), TOPPINGS]],
     ["Sundae Fresa", "Helado de vainilla, fresas frescas y crema.", 5.5, 1.6, "🍓", "Helados", 0, 0, 0, [["Fresas", 0.08], ["Crema de leche", 0.08], ["Leche", 0.1]]],
     ["Banana Split", "Clásico con tres sabores, banana y chocolate.", 6.9, 2.1, "🍌", "Helados", 0, 0, 0, [["Chocolate", 0.03], ["Crema de leche", 0.1], ["Leche", 0.15]]],
     ["Milkshake Oreo", "Batido cremoso con galletas y crema batida.", 5.2, 1.5, "🥤", "Helados", 0, 0, 0, [["Leche", 0.25], ["Crema de leche", 0.05], ["Vasos 12oz", 1]]],
@@ -353,10 +360,10 @@ async function seedCatalog() {
     ["Croque Monsieur", "Jamón, queso gruyere y bechamel gratinado.", 6.2, 2.1, "🧀", "Salados", 0, 0, 0, [["Harina", 0.05], ["Mantequilla", 0.02]]],
   ];
   for (const [i, p] of prods.entries()) {
-    const [name, desc, price, cost, emoji, cat, track, stock, min, recipe] = p;
+    const [name, desc, price, cost, emoji, cat, track, stock, min, recipe, options = []] = p;
     const r = await run(
-      "INSERT INTO products(category_id,name,description,price,cost,emoji,active,track_stock,stock,min_stock,sort,created_at) VALUES(?,?,?,?,?,?,1,?,?,?,?,?)",
-      await catId(cat), name, desc, price, cost, emoji, track, stock, min, i, t,
+      "INSERT INTO products(category_id,name,description,price,cost,emoji,active,track_stock,stock,min_stock,sort,created_at,options) VALUES(?,?,?,?,?,?,1,?,?,?,?,?,?)",
+      await catId(cat), name, desc, price, cost, emoji, track, stock, min, i, t, JSON.stringify(options),
     );
     for (const [ing, qty] of recipe) await run("INSERT INTO product_ingredients(product_id,ingredient_id,qty) VALUES(?,?,?)", r.lastInsertRowid, await ingId(ing), qty);
   }

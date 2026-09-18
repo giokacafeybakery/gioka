@@ -54,10 +54,39 @@ export function customerError(type, c) {
   return null;
 }
 
+/**
+ * Resolve the options chosen for an item (sabores / adicionales) against the product's groups.
+ * Online the catalogue is authoritative: unknown choices are rejected, required groups must be chosen and a `single`
+ * group takes one choice. On an offline replay (`lenient`) the selection the device recorded is kept as is.
+ * Returns [{ group, name, price }].
+ */
+export function pickOptions(product, selected, lenient = false) {
+  const groups = Array.isArray(product.options) ? product.options : [];
+  const sel = (Array.isArray(selected) ? selected : []).filter((s) => s && typeof s === "object");
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  const out = [];
+  for (const g of groups) {
+    const found = [];
+    for (const s of sel.filter((x) => String(x.group || "") === g.name)) {
+      const c = g.choices.find((x) => x.name === String(s.name || ""));
+      if (c) { if (!found.some((f) => f.name === c.name)) found.push({ group: g.name, name: c.name, price: Number(c.price) || 0 }); }
+      else if (lenient) found.push({ group: g.name, name: String(s.name || ""), price: Number(s.price) || 0 });
+      else throw bad(`"${s.name}" ya no está disponible en ${product.name}`);
+    }
+    if (!lenient) {
+      if (g.required && !found.length) throw bad(`Elige ${g.name.toLowerCase()} para ${product.name}`);
+      if (g.type === "single" && found.length > 1) throw bad(`Solo puedes elegir una opción de ${g.name.toLowerCase()} en ${product.name}`);
+    }
+    out.push(...found);
+  }
+  if (lenient) for (const s of sel) if (!groups.some((g) => g.name === String(s.group || ""))) out.push({ group: String(s.group || ""), name: String(s.name || ""), price: Number(s.price) || 0 });
+  return out;
+}
+
 const publicView = (o) => o && ({
   code: o.code, daily_number: o.daily_number, status: o.status, type: o.type, customer_name: o.customer_name,
   created_at: o.created_at, ready_at: o.ready_at, delivered_at: o.delivered_at, total: o.total, paid: o.paid,
-  items: o.items.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji })),
+  items: o.items.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji, options: (Array.isArray(i.options) ? i.options : []).map((x) => x.name) })),
 });
 
 async function applyStock(order, direction, userId, io, at) {
@@ -159,9 +188,12 @@ export default function ordersRoutes(io) {
       if (!p || (!p.active && !replay)) throw Object.assign(new Error("Producto no disponible"), { status: 400 });
       const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
       if (!replay && p.track_stock && p.stock < qty) throw Object.assign(new Error(`Stock insuficiente de ${p.name} (quedan ${p.stock})`), { status: 400 });
+      // Sabores / adicionales chosen at the register; the unit price includes their extras.
+      const options = pickOptions(p, it.options, replay);
+      const extras = options.reduce((s, c) => s + c.price, 0);
       // Offline devices sell at the price they saw; online the catalogue is authoritative.
-      const price = replay && Number.isFinite(Number(it.price)) ? Number(it.price) : p.price;
-      items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || "") });
+      const price = replay && Number.isFinite(Number(it.price)) ? Number(it.price) : +(p.price + extras).toFixed(2);
+      items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || ""), options });
     }
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = Math.min(subtotal, Math.max(0, Number(b.discount || 0)));
@@ -187,7 +219,7 @@ export default function ordersRoutes(io) {
       );
       const oid = x.lastInsertRowid;
       for (const it of items)
-        await run("INSERT INTO order_items(order_id,product_id,name,emoji,price,qty,notes) VALUES(?,?,?,?,?,?,?)", oid, it.product_id, it.name, it.emoji, it.price, it.qty, it.notes);
+        await run("INSERT INTO order_items(order_id,product_id,name,emoji,price,qty,notes,options) VALUES(?,?,?,?,?,?,?,?)", oid, it.product_id, it.name, it.emoji, it.price, it.qty, it.notes, JSON.stringify(it.options));
       await applyStock(await loadOrder(oid), -1, req.user.id, io, t);
       return oid;
     });

@@ -10,6 +10,7 @@ import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { StockLog } from "@/components/StockLog";
 import { ImageCropper } from "@/components/ImageCropper";
+import { OptionsEditor } from "@/components/OptionsEditor";
 
 type Tab = "products" | "categories" | "stock" | "users" | "settings";
 const EMOJIS = ["☕", "🍵", "🧋", "🥤", "🧃", "🍹", "🍦", "🍨", "🍧", "🍰", "🧁", "🍩", "🍪", "🍫", "🍓", "🍌", "🥐", "🥖", "🥯", "🍞", "🥧", "🥪", "🥑", "🧀", "🍕", "🌮", "🥗", "🍳", "💧", "🫖", "🍽️", "🐼"];
@@ -66,8 +67,13 @@ function Products() {
   const closeCrop = () => { if (crop?.startsWith("blob:")) URL.revokeObjectURL(crop); setCrop(null); };
   const save = async () => {
     if (!edit?.name || edit.price == null) return toast.warning("Nombre y precio son requeridos");
+    // Sabores/adicionales: drop empty rows; a named group without choices is a mistake worth flagging.
+    const options = (edit.options || []).map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), price: Number(c.price) || 0 })) })).filter((g) => g.name || g.choices.length);
+    const broken = options.find((g) => !g.name || !g.choices.length);
+    if (broken) return toast.warning(broken.name ? `Agrega al menos una opción en "${broken.name}"` : "Ponle nombre al grupo de opciones");
     try {
-      if (edit.id) await api.put(`/api/products/${edit.id}`, edit); else await api.post("/api/products", edit);
+      const body = { ...edit, options };
+      if (edit.id) await api.put(`/api/products/${edit.id}`, body); else await api.post("/api/products", body);
       toast.success("Producto guardado"); setEdit(null); load();
     } catch (e) { toast.error((e as Error).message); }
   };
@@ -79,7 +85,7 @@ function Products() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <input className="input h-10 max-w-xs" placeholder="Buscar producto…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="btn-primary ml-auto" onClick={() => setEdit({ name: "", description: "", price: 0, cost: 0, emoji: "🍽️", category_id: cats[0]?.id ?? null, active: true, track_stock: false, stock: 0, min_stock: 5, recipe: [] })}><Plus size={18} /> Producto</button>
+        <button className="btn-primary ml-auto" onClick={() => setEdit({ name: "", description: "", price: 0, cost: 0, emoji: "🍽️", category_id: cats[0]?.id ?? null, active: true, track_stock: false, stock: 0, min_stock: 5, recipe: [], options: [] })}><Plus size={18} /> Producto</button>
       </div>
       {list.length === 0 ? <Empty title="Sin productos" /> : (
         <div className="card overflow-x-auto">
@@ -93,7 +99,7 @@ function Products() {
                   <td className="px-4 py-2 text-right font-black">{money(p.price)}</td>
                   <td className="px-4 py-2 text-right font-bold text-muted">{money(p.cost)}</td>
                   <td className="px-4 py-2 text-right font-bold text-mint-2">{p.price ? Math.round(((p.price - p.cost) / p.price) * 100) : 0}%</td>
-                  <td className="px-4 py-2 font-bold">{p.track_stock ? <span className={p.stock <= p.min_stock ? "text-berry" : ""}>{p.stock} u</span> : <span className="text-muted">{p.recipe.length ? `${p.recipe.length} insumos` : "—"}</span>}</td>
+                  <td className="px-4 py-2 font-bold">{p.track_stock ? <span className={p.stock <= p.min_stock ? "text-berry" : ""}>{p.stock} u</span> : <span className="text-muted">{p.recipe.length ? `${p.recipe.length} insumos` : "—"}</span>}{p.options?.length ? <span className="block text-[11px] font-extrabold text-peach-2">{p.options.map((g) => g.name).join(" · ")}</span> : null}</td>
                   <td className="px-4 py-2">{p.active ? <span className="pill bg-mint-soft text-mint-2"><CheckCircle2 size={11} /> Activo</span> : <span className="pill bg-cream-2 text-muted"><EyeOff size={11} /> Oculto</span>}</td>
                   <td className="px-2 py-2"><div className="flex justify-end gap-1"><button className="btn-icon btn-ghost w-9 h-9" onClick={() => setEdit({ ...p })}><Pencil size={15} /></button><button className="btn-icon btn-ghost w-9 h-9 text-berry" onClick={() => setDel(p)}><Trash2 size={15} /></button></div></td>
                 </tr>
@@ -151,6 +157,10 @@ function Products() {
                   ))}
                   <button className="btn-soft btn-sm" disabled={!ings.length} onClick={() => setEdit({ ...edit, recipe: [...(edit.recipe || []), { ingredient_id: ings[0].id, qty: 1 }] })}><Plus size={14} /> Agregar insumo</button>
                 </div>
+              </div>
+              <div className="col-span-2">
+                <label className="label">Sabores y adicionales (el cajero los elige al vender)</label>
+                <OptionsEditor value={edit.options || []} onChange={(options) => setEdit({ ...edit, options })} />
               </div>
             </div>
           </div>

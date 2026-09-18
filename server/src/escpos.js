@@ -58,6 +58,12 @@ export function sendToPrinter(host, port, buffer, timeoutMs = 5000) {
 const money = (cur, n) => `${cur}${Number(n || 0).toFixed(2)}`;
 const TYPE = { takeaway: "PARA LLEVAR", delivery: "DELIVERY", dinein: "EN MESA" };
 const PAY = { cash: "Efectivo", card: "Tarjeta", qr: "QR / Transferencia" };
+/** "Sabor: Chocolate | Adicionales: Chispas, Crema" for the options chosen on an item. */
+export function optionsText(item) {
+  const by = new Map();
+  for (const o of Array.isArray(item.options) ? item.options : []) by.set(o.group || "", [...(by.get(o.group || "") || []), o.name]);
+  return [...by].map(([g, names]) => (g ? `${g}: ` : "") + names.join(", ")).join(" | ");
+}
 
 export function receiptBuffer(order, settings, { kitchen = false } = {}) {
   const p = new EscPos(Number(settings.printer_width) || 42);
@@ -95,6 +101,8 @@ export function receiptBuffer(order, settings, { kitchen = false } = {}) {
     } else {
       p.cols(`${it.qty} x ${it.name}`, money(cur, it.price * it.qty));
     }
+    const opts = optionsText(it);
+    if (opts) { if (kitchen) p.bold(true).text(`   > ${opts}`).bold(false); else p.text(`   > ${opts}`); }
     if (it.notes) p.text(`   * ${it.notes}`);
   }
   p.line("-");

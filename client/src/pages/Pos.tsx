@@ -9,7 +9,9 @@ import { createOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, greeting, STATUS, TYPE, elapsed } from "@/lib/format";
 import type { Category, Order, OrderStatus, OrderType, PaymentMethod, Product } from "@/lib/types";
-import { useCart, cartTotals, customerError } from "@/store/cart";
+import { useCart, cartTotals, customerError, lineUnitPrice } from "@/store/cart";
+import { OptionsPicker } from "@/components/OptionsPicker";
+import { optionsSummary, itemLabel } from "@/lib/options";
 import { useSettings } from "@/store/settings";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -33,7 +35,8 @@ export default function Pos() {
   const [cashReceived, setCashReceived] = useState("");
   const [busy, setBusy] = useState<false | "pay" | "kitchen">(false);
   const [done, setDone] = useState<Order | null>(null);
-  const [noteFor, setNoteFor] = useState<number | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [picking, setPicking] = useState<Product | null>(null);
   const [showDiscount, setShowDiscount] = useState(false);
   const [mobileCart, setMobileCart] = useState(false);
   const [openCash, setOpenCash] = useState(false);
@@ -56,7 +59,11 @@ export default function Pos() {
   }, [products, cat, q]);
 
   const totals = cartTotals(cart.lines, cart.discount, settings?.tax_rate || 0);
-  const qtyOf = (id: number) => cart.lines.find((l) => l.product.id === id)?.qty || 0;
+  // A product can be in the cart several times with different sabores/adicionales; the card shows the sum.
+  const qtyOf = (id: number) => cart.lines.filter((l) => l.product.id === id).reduce((s, l) => s + l.qty, 0);
+  // Products with options open the picker; the rest go straight in. "−" on the card takes one unit from the last line of that product.
+  const addProduct = (p: Product) => { if (p.options?.length) setPicking(p); else cart.add(p); };
+  const removeOne = (id: number) => { const l = [...cart.lines].reverse().find((x) => x.product.id === id); if (l) cart.setQty(l.key, l.qty - 1); };
   const change = payment === "cash" && cashReceived ? Number(cashReceived) - totals.total : 0;
 
   const submit = async (payNow: boolean) => {
@@ -123,24 +130,28 @@ export default function Pos() {
           <Empty icon={<ShoppingBag size={26} />} title="Sin productos" hint="Toca un producto del menú para agregarlo al pedido." />
         ) : (
           <ul className="flex flex-col gap-2">
-            {cart.lines.map((l) => (
-              <li key={l.product.id} className="flex items-center gap-3 p-2 rounded-2xl bg-cream/70 anim-fade-up">
+            {cart.lines.map((l) => {
+              const unit = lineUnitPrice(l); const opts = optionsSummary(l.options);
+              return (
+              <li key={l.key} className="flex items-center gap-3 p-2 rounded-2xl bg-cream/70 anim-fade-up">
                 <ProductThumb emoji={l.product.emoji} image={l.product.image} color={l.product.category_color} size={48} rounded="rounded-xl" />
                 <div className="min-w-0 flex-1">
                   <div className="font-extrabold text-[14px] leading-tight truncate">{l.product.name}</div>
-                  <div className="text-xs font-bold text-muted">{money(l.product.price)} × {l.qty}{l.notes && <span className="text-peach-2"> · {l.notes}</span>}</div>
+                  {opts && <div className="text-xs font-bold text-ink-3 leading-snug">{opts}</div>}
+                  <div className="text-xs font-bold text-muted">{money(unit)} × {l.qty}{l.notes && <span className="text-peach-2"> · {l.notes}</span>}</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-black text-[14px]">{money(l.product.price * l.qty)}</div>
+                  <div className="font-black text-[14px]">{money(unit * l.qty)}</div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setNoteFor(l.product.id)} className="w-7 h-7 rounded-lg grid place-items-center text-muted hover:bg-paper hover:text-peach-2" title="Nota"><StickyNote size={14} /></button>
-                    <button onClick={() => cart.setQty(l.product.id, l.qty - 1)} className="w-7 h-7 rounded-lg bg-paper grid place-items-center hover:bg-line"><Minus size={14} /></button>
+                    <button onClick={() => setNoteFor(l.key)} className="w-7 h-7 rounded-lg grid place-items-center text-muted hover:bg-paper hover:text-peach-2" title="Nota"><StickyNote size={14} /></button>
+                    <button onClick={() => cart.setQty(l.key, l.qty - 1)} className="w-7 h-7 rounded-lg bg-paper grid place-items-center hover:bg-line"><Minus size={14} /></button>
                     <span className="w-5 text-center font-black text-sm">{l.qty}</span>
-                    <button onClick={() => cart.setQty(l.product.id, l.qty + 1)} className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center hover:bg-ink-2"><Plus size={14} /></button>
+                    <button onClick={() => cart.setQty(l.key, l.qty + 1)} className="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center hover:bg-ink-2"><Plus size={14} /></button>
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -213,7 +224,7 @@ export default function Pos() {
                     <div key={o.id} className="card p-3.5 w-[268px] shrink-0 anim-fade-up">
                       <div className="flex items-center justify-between text-xs font-extrabold text-muted"><span className="flex items-center gap-1.5">{TYPE_ICON[o.type]}{TYPE[o.type].label}{o.table_no && ` · ${o.table_no}`}</span><span>{elapsed(o.created_at)}</span></div>
                       <div className="mt-1 flex items-baseline justify-between"><div className="font-black text-lg truncate">#{o.daily_number} {o.customer_name && <span className="text-[15px] font-extrabold text-ink-3">{o.customer_name}</span>}</div><div className="font-black text-sm">{money(o.total)}</div></div>
-                      <div className="text-xs font-semibold text-muted truncate">{o.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
+                      <div className="text-xs font-semibold text-muted truncate">{o.items.map((i) => `${i.qty}× ${itemLabel(i)}`).join(", ")}</div>
                       <div className="mt-3 flex items-center gap-1.5 min-w-0">
                         <span className={`pill ${st.soft} ${st.text}`}><span className={`w-1.5 h-1.5 rounded-full ${st.color}`} />{st.label}</span>
                         {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
@@ -245,7 +256,7 @@ export default function Pos() {
                   const qty = qtyOf(p.id); const out = p.track_stock && p.stock <= 0; const low = p.track_stock && !out && p.stock <= p.min_stock;
                   return (
                     <div key={p.id} className={`card overflow-hidden flex flex-col transition hover:shadow-lift ${out ? "opacity-60" : ""}`}>
-                      <button disabled={out} onClick={() => cart.add(p)} className="relative text-left cursor-pointer disabled:cursor-not-allowed">
+                      <button disabled={out} onClick={() => addProduct(p)} className="relative text-left cursor-pointer disabled:cursor-not-allowed">
                         {p.image ? <img src={p.image} alt="" className="w-full aspect-[4/3] object-cover" /> : (
                           <div className="w-full aspect-[4/3] grid place-items-center" style={{ background: `linear-gradient(145deg, ${p.category_color || "#F2915A"}2e, ${p.category_color || "#F2915A"}66)` }}>
                             <span className="text-6xl drop-shadow-md select-none">{p.emoji}</span>
@@ -262,9 +273,9 @@ export default function Pos() {
                         <div className="mt-2.5 flex items-center justify-between">
                           <div className="font-black text-[17px]">{money(p.price)}</div>
                           <div className="flex items-center gap-1">
-                            <button disabled={qty === 0} onClick={() => cart.setQty(p.id, qty - 1)} className="w-8 h-8 rounded-lg bg-cream grid place-items-center disabled:opacity-40 hover:bg-line"><Minus size={14} /></button>
+                            <button disabled={qty === 0} onClick={() => removeOne(p.id)} className="w-8 h-8 rounded-lg bg-cream grid place-items-center disabled:opacity-40 hover:bg-line"><Minus size={14} /></button>
                             <span className="w-6 text-center font-black text-sm">{qty}</span>
-                            <button disabled={out} onClick={() => cart.add(p)} className="w-8 h-8 rounded-lg bg-peach text-white grid place-items-center hover:bg-peach-2 disabled:opacity-40"><Plus size={14} /></button>
+                            <button disabled={out} onClick={() => addProduct(p)} className="w-8 h-8 rounded-lg bg-peach text-white grid place-items-center hover:bg-peach-2 disabled:opacity-40"><Plus size={14} /></button>
                           </div>
                         </div>
                       </div>
@@ -279,6 +290,8 @@ export default function Pos() {
       </div>
 
       <OpenCashModal open={openCash} onClose={() => setOpenCash(false)} />
+      {/* Sabores y adicionales del producto antes de entrar al pedido */}
+      <OptionsPicker product={picking} onClose={() => setPicking(null)} onAdd={(options) => { if (picking) cart.add(picking, options); setPicking(null); }} />
 
       {/* Order panel (desktop) */}
       <aside className="hidden lg:flex w-[380px] xl:w-[400px] shrink-0 bg-paper border-l border-line m-3 ml-0 rounded-3xl shadow-soft overflow-hidden">{OrderPanel}</aside>
@@ -299,7 +312,7 @@ export default function Pos() {
       {/* Note modal */}
       <Modal open={noteFor != null} onClose={() => setNoteFor(null)} title="Nota para cocina" width="max-w-sm"
         footer={<button className="btn-primary" onClick={() => setNoteFor(null)}>Listo</button>}>
-        <input autoFocus className="input" placeholder="Ej: sin azúcar, extra caliente…" value={cart.lines.find((l) => l.product.id === noteFor)?.notes || ""} onChange={(e) => noteFor != null && cart.setNotes(noteFor, e.target.value)} />
+        <input autoFocus className="input" placeholder="Ej: sin azúcar, extra caliente…" value={cart.lines.find((l) => l.key === noteFor)?.notes || ""} onChange={(e) => noteFor != null && cart.setNotes(noteFor, e.target.value)} />
       </Modal>
 
       {/* Discount modal */}

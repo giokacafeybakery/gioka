@@ -6,6 +6,7 @@ import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
 import { payOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
+import { optionsSummary, itemLabel } from "@/lib/options";
 import { money, STATUS, TYPE, elapsed, time, PAYMENT } from "@/lib/format";
 import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/lib/types";
 import { useAuth } from "@/store/auth";
@@ -100,7 +101,7 @@ export default function Pedidos() {
           {o.items.map((it, i) => (
             <li key={i} className="flex gap-2 text-[15px] leading-snug">
               <span className="font-black w-7 shrink-0 text-peach-2">{it.qty}×</span>
-              <span className="font-bold">{it.name}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span>
+              <span className="font-bold">{it.name}{optionsSummary(it.options) && <span className="block text-[13px] text-peach-2 font-extrabold">{optionsSummary(it.options)}</span>}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span>
             </li>
           ))}
         </ul>
@@ -157,7 +158,7 @@ export default function Pedidos() {
                     <tr key={o.id} className="border-t border-line hover:bg-cream/60 cursor-pointer" onClick={() => setDetail(o)}>
                       <td className="px-4 py-3 font-black">#{o.daily_number} <span className="text-muted font-bold text-xs">{TYPE[o.type].short}</span></td>
                       <td className="px-4 py-3 font-bold">{o.customer_name || "—"}</td>
-                      <td className="px-4 py-3 text-muted font-semibold hidden md:table-cell truncate max-w-xs">{o.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td>
+                      <td className="px-4 py-3 text-muted font-semibold hidden md:table-cell truncate max-w-xs">{o.items.map((i) => `${i.qty}× ${itemLabel(i)}`).join(", ")}</td>
                       <td className="px-4 py-3"><span className={`pill ${STATUS[o.status].soft} ${STATUS[o.status].text}`}>{STATUS[o.status].label}</span></td>
                       <td className="px-4 py-3 font-bold text-muted hidden sm:table-cell">{time(o.created_at)}</td>
                       <td className="px-4 py-3 text-right font-black">{money(o.total)}</td>
@@ -200,7 +201,7 @@ export default function Pedidos() {
             )}
             <ul className="divide-y divide-line">
               {detail.items.map((it, i) => (
-                <li key={i} className="py-2 flex justify-between gap-3"><span className="font-bold"><span className="text-peach-2 font-black mr-2">{it.qty}×</span>{it.name}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span><span className="font-black">{money(it.qty * it.price)}</span></li>
+                <li key={i} className="py-2 flex justify-between gap-3"><span className="font-bold"><span className="text-peach-2 font-black mr-2">{it.qty}×</span>{it.name}{optionsSummary(it.options) && <span className="block text-xs text-ink-3 font-extrabold">{optionsSummary(it.options)}</span>}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span><span className="font-black">{money(it.qty * it.price)}</span></li>
               ))}
             </ul>
             <div className="mt-3 pt-3 border-t border-line flex justify-between items-baseline"><span className="font-black">Total</span><span className="text-2xl font-black">{money(detail.total)}</span></div>
