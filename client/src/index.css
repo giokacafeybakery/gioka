@@ -71,7 +71,10 @@ body {
 /* Mobile app: hide number spinners, iOS-like tap feedback */
 .font-app input[type="number"]::-webkit-inner-spin-button, .font-app input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .font-app input[type="number"] { -moz-appearance: textfield; }
-.font-app { -webkit-tap-highlight-color: transparent; }
+.font-app { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+.font-app button, .font-app a, .font-app [role="button"] { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.font-app img { -webkit-user-drag: none; }
+.font-app .overflow-y-auto { -webkit-overflow-scrolling: touch; }
 
 @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
@@ -80,6 +83,10 @@ body {
 @utility anim-fade-up { animation: fade-up .25s ease-out both; }
 @utility anim-pop { animation: pop-in .2s ease-out both; }
 @utility anim-ring { animation: pulse-ring 1.4s ease-out infinite; }
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes pulse-ring-w { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.45); } 100% { box-shadow: 0 0 0 2.4vh rgba(255,255,255,0); } }
+@utility anim-shimmer { animation: shimmer 1.6s ease-in-out infinite; }
+@utility anim-ring-w { animation: pulse-ring-w 1.6s ease-out infinite; }
 @utility anim-wiggle { animation: wiggle 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
 
 /* ---- Receipt print (80mm thermal, browser mode) ---- */
