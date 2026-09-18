@@ -41,7 +41,7 @@ export default function ItemDetail() {
         <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-white/50 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -right-10 w-64 h-64 rounded-full blur-3xl" style={{ background: `${item.color}aa` }} />
         {!item.image && (
-          <div className="pointer-events-none absolute -right-6 -bottom-8 select-none opacity-[0.14] rotate-[-14deg]" style={{ fontSize: 190, lineHeight: 1 }} aria-hidden>{item.emoji}</div>
+          <div className="pointer-events-none absolute -right-7 top-[calc(env(safe-area-inset-top,0px)+96px)] select-none opacity-[0.16] rotate-[14deg]" style={{ fontSize: 150, lineHeight: 1 }} aria-hidden>{item.emoji}</div>
         )}
 
         <div className="relative px-4 pt-[calc(env(safe-area-inset-top,0px)+8px)] h-[calc(env(safe-area-inset-top,0px)+52px)] flex items-center justify-between">
