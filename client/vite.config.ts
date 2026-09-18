@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png"],
+      includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png", "sounds/*.mp3"],
       manifest: {
         name: "Gioka — Café · Heladería · Bakery",
         short_name: "Gioka",

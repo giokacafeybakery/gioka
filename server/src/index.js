@@ -5,7 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
-import { get, now, initDb } from "./db.js";
+import { get, now, initDb, isDbOffline, dbAlive } from "./db.js";
 import { ensureBucket } from "./storage.js";
 import authRoutes, { requireAuth, requireRole } from "./routes/auth.js";
 import catalogRoutes from "./routes/catalog.js";
@@ -47,7 +47,12 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/print", requireAuth, printRoutes);
 app.use("/api/cash", requireAuth, cashRoutes(io));
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, time: now() }));
+// Health probe used by the clients to decide online/offline: the API must answer AND reach the database.
+app.get("/api/health", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const db = await dbAlive();
+  res.status(db ? 200 : 503).json({ ok: db, db, time: now(), ...(db ? {} : { error: "Sin conexión con la base de datos", code: "db_offline" }) });
+});
 
 // Serve built client (production)
 const dist = path.join(__dirname, "..", "..", "client", "dist");
@@ -68,6 +73,11 @@ if (fs.existsSync(dist)) {
 }
 
 app.use((err, _req, res, _next) => {
+  // Database unreachable (server on the LAN without internet): tell the clients so they keep working offline and retry later.
+  if (isDbOffline(err)) {
+    console.warn("Base de datos inaccesible:", err.message);
+    return res.status(503).json({ error: "Sin conexión con la base de datos", code: "db_offline" });
+  }
   console.error(err);
   res.status(err.status || 500).json({ error: err.message || "Error interno" });
 });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { get, all, run, now, getSettings, transaction } from "../db.js";
+import { get, all, run, now, getSettings, transaction, localDayBounds, clientTime, clientId } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
 import { receiptBuffer, sendToPrinter } from "../escpos.js";
 
@@ -11,16 +11,17 @@ async function genCode(prefix) {
   } while (await get("SELECT 1 FROM orders WHERE code=?", c));
   return c;
 }
-const localDayStart = () => {
-  const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString();
-};
+const localDayStart = () => localDayBounds().start;
 const id = (v) => Number(v) || 0;
 
-export async function loadOrder(orderId) {
-  const o = await get("SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.id=?", id(orderId));
+/** Orders are addressed by numeric id or, for ones created offline, by "c_<client_id>". */
+export async function loadOrder(ref) {
+  const o = typeof ref === "string" && ref.startsWith("c_")
+    ? await get("SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.client_id=?", ref.slice(2))
+    : await get("SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.id=?", id(ref));
   if (!o) return null;
   o.items = await all("SELECT * FROM order_items WHERE order_id=? ORDER BY id", o.id);
-  o.paid = !!o.paid;
+  o.paid = !!o.paid; o.offline = !!o.offline;
   return o;
 }
 export async function loadOrders(where = "", ...params) {
@@ -30,7 +31,14 @@ export async function loadOrders(where = "", ...params) {
   const items = await all(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);
   const byOrder = {};
   for (const it of items) (byOrder[it.order_id] ||= []).push(it);
-  return rows.map((r) => ({ ...r, paid: !!r.paid, items: byOrder[r.id] || [] }));
+  return rows.map((r) => ({ ...r, paid: !!r.paid, offline: !!r.offline, items: byOrder[r.id] || [] }));
+}
+
+/** Cash session to attach to an operation that happened at `iso`: the one open at that moment, else the currently open one. */
+async function sessionAt(iso) {
+  return (await get("SELECT id FROM cash_sessions WHERE opened_at <= ? AND (closed_at IS NULL OR closed_at >= ?) ORDER BY id DESC LIMIT 1", iso, iso))
+    || (await get("SELECT id FROM cash_sessions WHERE closed_at IS NULL ORDER BY id DESC LIMIT 1"))
+    || null;
 }
 
 const publicView = (o) => o && ({
@@ -39,9 +47,9 @@ const publicView = (o) => o && ({
   items: o.items.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji })),
 });
 
-async function applyStock(order, direction, userId, io) {
+async function applyStock(order, direction, userId, io, at) {
   // direction: -1 consume, +1 restore
-  const t = now();
+  const t = at || now();
   const lows = [];
   const reason = direction < 0 ? "venta" : "anulación";
   for (const it of order.items) {
@@ -119,45 +127,57 @@ export default function ordersRoutes(io) {
     const b = req.body;
     const settings = await getSettings();
     if (!["admin", "cajero"].includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
-    const session = await openSession();
-    if (!session) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para poder vender." });
+    // Idempotent: the same operation sent twice (retry after a lost response, offline replay) returns the existing order.
+    const cid = clientId(b.client_id);
+    if (cid) { const dup = await loadOrder("c_" + cid); if (dup) return res.json(dup); }
+    // Offline replay: the sale already happened on the device, so it is recorded even if the register is now closed or stock ran out.
+    const replay = !!(cid && b.offline);
+    const t = replay ? clientTime(b.created_at) : now();
+    const session = replay ? await sessionAt(t) : await openSession();
+    if (!session && !replay) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para poder vender." });
     if (!Array.isArray(b.items) || !b.items.length) return res.status(400).json({ error: "El pedido está vacío" });
     if (!["takeaway", "delivery", "dinein"].includes(b.type)) return res.status(400).json({ error: "Tipo de pedido inválido" });
 
     const items = [];
     for (const it of b.items) {
-      const p = await get("SELECT * FROM products WHERE id=? AND active=1", id(it.product_id));
-      if (!p) throw Object.assign(new Error("Producto no disponible"), { status: 400 });
+      const p = await get("SELECT * FROM products WHERE id=?", id(it.product_id));
+      if (!p || (!p.active && !replay)) throw Object.assign(new Error("Producto no disponible"), { status: 400 });
       const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
-      if (p.track_stock && p.stock < qty) throw Object.assign(new Error(`Stock insuficiente de ${p.name} (quedan ${p.stock})`), { status: 400 });
-      items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price: p.price, qty, notes: String(it.notes || "") });
+      if (!replay && p.track_stock && p.stock < qty) throw Object.assign(new Error(`Stock insuficiente de ${p.name} (quedan ${p.stock})`), { status: 400 });
+      // Offline devices sell at the price they saw; online the catalogue is authoritative.
+      const price = replay && Number.isFinite(Number(it.price)) ? Number(it.price) : p.price;
+      items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || "") });
     }
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = Math.min(subtotal, Math.max(0, Number(b.discount || 0)));
     const tax = +(((subtotal - discount) * (Number(settings.tax_rate) || 0)) / 100).toFixed(2);
     const total = +(subtotal - discount + tax).toFixed(2);
     const paid = !!b.payment_method;
-    const t = now();
 
     const orderId = await transaction(async () => {
-      const daily = ((await get("SELECT COALESCE(MAX(daily_number),0) AS m FROM orders WHERE created_at >= ?", localDayStart())).m || 0) + 1;
+      const day = localDayBounds(t);
+      // Keep the number/code the device printed on the ticket when they are still free; otherwise assign the next one.
+      const wanted = Number(b.daily_number) || 0;
+      const taken = wanted ? await get("SELECT 1 FROM orders WHERE daily_number=? AND created_at >= ? AND created_at < ?", wanted, day.start, day.end) : true;
+      const daily = replay && wanted && !taken ? wanted : ((await get("SELECT COALESCE(MAX(daily_number),0) AS m FROM orders WHERE created_at >= ? AND created_at < ?", day.start, day.end)).m || 0) + 1;
+      const codeOk = replay && typeof b.code === "string" && /^[A-Z0-9]{1,4}-[A-Z0-9]{5}$/.test(b.code) && !(await get("SELECT 1 FROM orders WHERE code=?", b.code));
       const x = await run(
-        `INSERT INTO orders(code,daily_number,type,customer_name,customer_phone,table_no,status,payment_method,paid,subtotal,discount,tax,total,cash_received,notes,user_id,cash_session_id,created_at,updated_at,paid_at)
-         VALUES(?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        await genCode(settings.order_prefix || "G"), daily, b.type, String(b.customer_name || "").trim(), String(b.customer_phone || "").trim(), String(b.table_no || ""),
+        `INSERT INTO orders(code,daily_number,type,customer_name,customer_phone,table_no,status,payment_method,paid,subtotal,discount,tax,total,cash_received,notes,user_id,cash_session_id,created_at,updated_at,paid_at,client_id,offline)
+         VALUES(?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        codeOk ? b.code : await genCode(settings.order_prefix || "G"), daily, b.type, String(b.customer_name || "").trim(), String(b.customer_phone || "").trim(), String(b.table_no || ""),
         b.payment_method || null, paid ? 1 : 0, subtotal, discount, tax, total,
         b.payment_method === "cash" && b.cash_received != null ? Number(b.cash_received) : null,
-        String(b.notes || ""), req.user.id, session.id, t, t, paid ? t : null,
+        String(b.notes || ""), (replay && id(b.user_id)) || req.user.id, session ? session.id : null, t, t, paid ? t : null, cid, replay ? 1 : 0,
       );
       const oid = x.lastInsertRowid;
       for (const it of items)
         await run("INSERT INTO order_items(order_id,product_id,name,emoji,price,qty,notes) VALUES(?,?,?,?,?,?,?)", oid, it.product_id, it.name, it.emoji, it.price, it.qty, it.notes);
-      await applyStock(await loadOrder(oid), -1, req.user.id, io);
+      await applyStock(await loadOrder(oid), -1, req.user.id, io, t);
       return oid;
     });
     const order = await loadOrder(orderId);
     io.emit("order:created", order);
-    if (settings.auto_print) { networkPrint(order, settings, false); networkPrint(order, settings, true); }
+    if (settings.auto_print && !replay) { networkPrint(order, settings, false); networkPrint(order, settings, true); }
     res.json(order);
   });
 
@@ -165,13 +185,15 @@ export default function ordersRoutes(io) {
     if (!["admin", "cajero"].includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
     const o = await loadOrder(req.params.id);
     if (!o) return res.status(404).json({ error: "No existe" });
-    if (o.paid) return res.status(400).json({ error: "El pedido ya está pagado" });
-    const session = await openSession();
-    if (!session) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para cobrar." });
     const { payment_method, cash_received } = req.body;
+    const replay = !!clientId(req.body.op_id); // sent by the sync queue → must be idempotent
+    if (o.paid) return replay ? res.json(o) : res.status(400).json({ error: "El pedido ya está pagado" });
     if (!["cash", "card", "qr"].includes(payment_method)) return res.status(400).json({ error: "Método inválido" });
+    const t = replay ? clientTime(req.body.at) : now();
+    const session = replay ? await sessionAt(t) : await openSession();
+    if (!session && !replay) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para cobrar." });
     await run("UPDATE orders SET payment_method=?, paid=1, paid_at=?, cash_received=?, updated_at=?, cash_session_id=COALESCE(cash_session_id, ?) WHERE id=?",
-      payment_method, now(), payment_method === "cash" && cash_received != null ? Number(cash_received) : null, now(), session.id, o.id);
+      payment_method, t, payment_method === "cash" && cash_received != null ? Number(cash_received) : null, t, session ? session.id : null, o.id);
     const order = await loadOrder(o.id);
     io.emit("order:updated", order);
     res.json(order);
@@ -182,11 +204,13 @@ export default function ordersRoutes(io) {
     if (!o) return res.status(404).json({ error: "No existe" });
     const { status } = req.body;
     if (!["pending", "preparing", "ready", "delivered", "cancelled"].includes(status)) return res.status(400).json({ error: "Estado inválido" });
-    if (o.status === "cancelled") return res.status(400).json({ error: "El pedido ya fue cancelado" });
-    const t = now();
+    const replay = !!clientId(req.body.op_id);
+    if (o.status === status) return res.json(o); // idempotent (retry / offline replay)
+    if (o.status === "cancelled") return replay ? res.json(o) : res.status(400).json({ error: "El pedido ya fue cancelado" });
+    const t = replay ? clientTime(req.body.at) : now();
     if (status === "cancelled") {
       if (req.user.role === "cocina") return res.status(403).json({ error: "Sin permisos" });
-      await transaction(() => applyStock(o, +1, req.user.id, io));
+      await transaction(() => applyStock(o, +1, req.user.id, io, t));
     }
     await run("UPDATE orders SET status=?, updated_at=?, ready_at=CASE WHEN ?::text='ready' THEN ? ELSE ready_at END, delivered_at=CASE WHEN ?::text='delivered' THEN ? ELSE delivered_at END WHERE id=?",
       status, t, status, t, status, t, o.id);

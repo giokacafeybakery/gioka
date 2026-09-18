@@ -22,8 +22,25 @@ export const pool = new pg.Pool({
   ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
   max: 8,
   idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000, // sin internet: fallar rápido en vez de colgar la petición
 });
 pool.on("error", (e) => console.error("Postgres pool:", e.message));
+
+/** True when the error means "no se puede hablar con la base de datos" (red caída, DNS, Supabase inaccesible). */
+export function isDbOffline(e) {
+  if (!e) return false;
+  if (e.code && /^(ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE)$/.test(e.code)) return true;
+  if (e.code && /^(08|57P0)/.test(String(e.code))) return true; // connection_exception / admin_shutdown
+  return /timeout exceeded when trying to connect|Connection terminated|terminating connection|connection is closed|Client has encountered a connection error/i.test(e.message || "");
+}
+/** Quick liveness check used by /api/health (never waits more than `ms`). */
+export async function dbAlive(ms = 3000) {
+  let t;
+  try {
+    await Promise.race([pool.query("SELECT 1"), new Promise((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); })]);
+    return true;
+  } catch { return false; } finally { clearTimeout(t); }
+}
 
 const als = new AsyncLocalStorage();
 const client = () => als.getStore() || pool;
@@ -194,7 +211,38 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_movements_created ON stock_movements(created_at);
+-- Sincronización offline: cada operación creada sin conexión trae un client_id (UUID) que la hace idempotente al reenviarse.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS client_id TEXT;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS client_id TEXT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS client_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS orders_client_id ON orders(client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS movements_client_id ON stock_movements(client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS cash_sessions_client_id ON cash_sessions(client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ingredients_client_id ON ingredients(client_id);
 `;
+
+/** Start/end (ISO UTC) of the server-local day that contains `iso` (default: now). */
+export function localDayBounds(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  const start = new Date(d); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+/** Timestamp sent by an offline device: accepted if it parses and is not in the future (more than 5 min) nor older than 30 days. */
+export function clientTime(iso, fallback = now()) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return fallback;
+  const n = Date.now();
+  if (t > n + 5 * 60_000 || t < n - 30 * 86_400_000) return fallback;
+  return new Date(t).toISOString();
+}
+/** Idempotency key sent by the client (UUID-like); anything else is ignored. */
+export const clientId = (v) => (typeof v === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(v) ? v : null);
+
 
 export async function getSettings() {
   const s = {};

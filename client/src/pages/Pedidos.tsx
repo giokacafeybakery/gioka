@@ -12,7 +12,11 @@ import { toast } from "@/store/toast";
 
 const TYPE_ICON: Record<OrderType, React.ReactNode> = { takeaway: <ShoppingBag size={14} />, delivery: <Bike size={14} />, dinein: <UtensilsCrossed size={14} /> };
 
-function beep() {
+// New-order chime: the mp3 in public/sounds (preloaded once); falls back to a synthesized beep if the browser refuses to play it.
+const chime = typeof Audio !== "undefined" ? new Audio("/sounds/nuevo-pedido.mp3") : null;
+if (chime) { chime.preload = "auto"; chime.volume = 0.9; }
+
+function fallbackBeep() {
   try {
     const ctx = new AudioContext();
     const o = ctx.createOscillator(); const g = ctx.createGain();
@@ -21,6 +25,12 @@ function beep() {
     o.frequency.setValueAtTime(1175, ctx.currentTime + 0.12);
     o.stop(ctx.currentTime + 0.28);
   } catch { /* no audio */ }
+}
+
+function beep() {
+  if (!chime) return fallbackBeep();
+  chime.currentTime = 0;
+  chime.play().catch(fallbackBeep);
 }
 
 export default function Pedidos() {
@@ -98,7 +108,7 @@ export default function Pedidos() {
     <div className="flex flex-col h-full min-h-0">
       <PageHeader title="Pedidos" subtitle={`${orders.filter((o) => ["pending", "preparing", "ready"].includes(o.status)).length} en curso · ${history.filter((o) => o.status === "delivered").length} entregados hoy`}>
         <Segmented value={view} onChange={setView} options={[{ value: "board", label: "Tablero" }, { value: "history", label: <span className="flex items-center gap-1"><History size={14} /> Historial</span> }]} />
-        <button className={`btn-icon ${sound ? "btn-soft" : "btn-ghost text-muted"}`} onClick={() => setSound(!sound)} title="Sonido de nuevos pedidos">{sound ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
+        <button className={`btn-icon ${sound ? "btn-soft" : "btn-ghost text-muted"}`} onClick={() => { if (!sound) beep(); setSound(!sound); }} title="Sonido de nuevos pedidos">{sound ? <Volume2 size={18} /> : <VolumeX size={18} />}</button>
       </PageHeader>
 
       {view === "board" ? (
