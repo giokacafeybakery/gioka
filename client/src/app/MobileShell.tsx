@@ -54,24 +54,40 @@ export default function MobileShell() {
 
         <AnimatePresence>
           {showTabs && (
-            <motion.nav key="tabs" initial={{ y: 90 }} animate={{ y: 0 }} exit={{ y: 90 }} transition={{ type: "spring", stiffness: 380, damping: 36 }}
+            <motion.nav key="tabs" initial={{ y: 96 }} animate={{ y: 0 }} exit={{ y: 96 }} transition={{ type: "spring", stiffness: 380, damping: 36 }}
               className="absolute left-0 right-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pointer-events-none">
-              <div className="pointer-events-auto relative h-[68px] rounded-[26px] bg-ink text-white shadow-[0_18px_40px_-16px_rgba(0,0,0,0.6)] flex items-center justify-around px-2">
+              <div className="pointer-events-auto relative h-[74px] rounded-[28px] bg-gradient-to-b from-[#2b2b2b] to-ink text-white ring-1 ring-inset ring-white/[0.07] shadow-[0_22px_44px_-18px_rgba(0,0,0,0.65),0_2px_6px_rgba(0,0,0,0.25)] grid grid-cols-5 items-stretch px-1.5">
                 {TABS.map((t) => {
                   const active = to === t.to;
                   if (t.center) return (
-                    <motion.button key={t.to} whileTap={{ scale: 0.9 }} onClick={() => nav(t.to)} aria-label={t.label}
-                      className={`-mt-9 w-16 h-16 rounded-full grid place-items-center text-white shadow-[0_12px_28px_-8px_rgba(79,189,145,0.95)] ring-[6px] ring-app ${active ? "bg-mint-2" : "bg-mint"}`}>
-                      <Plus size={30} strokeWidth={2.6} />
-                    </motion.button>
+                    <div key={t.to} className="relative flex flex-col items-center justify-end pb-1.5">
+                      <motion.button whileTap={{ scale: 0.88 }} onClick={() => nav(t.to)} aria-label={t.label}
+                        className="absolute -top-8 w-[62px] h-[62px] rounded-full grid place-items-center text-white ring-[5px] ring-app bg-gradient-to-b from-mint to-mint-2 shadow-[0_14px_30px_-8px_rgba(79,189,145,0.9),inset_0_1px_0_rgba(255,255,255,0.35)]">
+                        <motion.span animate={{ rotate: active ? 90 : 0, scale: active ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 420, damping: 28 }} className="grid place-items-center">
+                          <Plus size={30} strokeWidth={2.7} />
+                        </motion.span>
+                      </motion.button>
+                      <span className={`text-[10px] font-semibold tracking-wide transition-colors ${active ? "text-mint" : "text-white/50"}`}>{t.label}</span>
+                    </div>
                   );
                   const Icon = t.icon;
+                  const badge = t.to === "/app/alertas" ? lowCount : 0;
                   return (
-                    <motion.button key={t.to} whileTap={{ scale: 0.88 }} onClick={() => nav(t.to)} aria-label={t.label}
-                      className={`relative w-14 h-14 rounded-2xl grid place-items-center transition-colors ${active ? "text-white" : "text-white/45"}`}>
-                      <Icon size={24} strokeWidth={active ? 2.4 : 2} />
-                      {t.to === "/app/alertas" && lowCount > 0 && <span className="absolute top-2.5 right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-berry text-[10px] font-bold grid place-items-center ring-2 ring-ink">{lowCount}</span>}
-                      {active && <motion.span layoutId="tab-dot" className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-mint" transition={{ type: "spring", stiffness: 500, damping: 35 }} />}
+                    <motion.button key={t.to} whileTap={{ scale: 0.9 }} onClick={() => nav(t.to)} aria-label={t.label}
+                      className={`relative my-2 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-colors ${active ? "text-white" : "text-white/45"}`}>
+                      {active && <motion.span layoutId="tab-pill" className="absolute inset-x-1 inset-y-0 rounded-2xl bg-white/[0.09] ring-1 ring-inset ring-white/[0.08]" transition={{ type: "spring", stiffness: 520, damping: 38 }} />}
+                      <span className="relative">
+                        <Icon size={23} strokeWidth={active ? 2.4 : 2} />
+                        <AnimatePresence>
+                          {badge > 0 && (
+                            <motion.span key="badge" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ type: "spring", stiffness: 500, damping: 26 }}
+                              className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-berry text-white text-[10px] font-bold leading-none grid place-items-center ring-2 ring-[#262626]">
+                              {badge > 99 ? "99+" : badge}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </span>
+                      <span className={`relative text-[10px] tracking-wide ${active ? "font-bold" : "font-semibold"}`}>{t.label}</span>
                     </motion.button>
                   );
                 })}
