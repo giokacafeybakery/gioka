@@ -1,0 +1,56 @@
+// Image storage: Supabase Storage (bucket "gioka", public) when SUPABASE_URL + SUPABASE_SERVICE_KEY are set,
+// otherwise the local server/uploads folder. Both return the URL to store in the database.
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
+const BUCKET = process.env.SUPABASE_BUCKET || "gioka";
+const supa = () => {
+  const url = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  return url && key ? { url, key } : null;
+};
+
+const parse = (dataUrl, types) => {
+  if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
+  const m = dataUrl.match(new RegExp(`^data:image/(${types});base64,(.+)$`));
+  if (!m) return null;
+  const ext = m[1] === "jpeg" ? "jpg" : m[1];
+  return { ext, mime: `image/${m[1]}`, buf: Buffer.from(m[2], "base64") };
+};
+
+/** Make sure the public bucket exists (idempotent). */
+export async function ensureBucket() {
+  const s = supa();
+  if (!s) return false;
+  const h = { Authorization: `Bearer ${s.key}`, apikey: s.key, "Content-Type": "application/json" };
+  const r = await fetch(`${s.url}/storage/v1/bucket/${BUCKET}`, { headers: h });
+  if (r.ok) return true;
+  const c = await fetch(`${s.url}/storage/v1/bucket`, { method: "POST", headers: h, body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true, file_size_limit: 10 * 1024 * 1024 }) });
+  if (!c.ok && c.status !== 409) throw new Error(`No se pudo crear el bucket ${BUCKET}: ${await c.text()}`);
+  return true;
+}
+
+/**
+ * Persist a base64 data URL. `name` is the file name without extension (e.g. "p12-1699999").
+ * Returns a URL (absolute for Supabase, "/uploads/…" for local) or null when the data URL is invalid.
+ */
+export async function saveImage(dataUrl, name, types = "png|jpe?g|webp|gif") {
+  const img = parse(dataUrl, types);
+  if (!img) return null;
+  const file = `${name}.${img.ext}`;
+  const s = supa();
+  if (s) {
+    const r = await fetch(`${s.url}/storage/v1/object/${BUCKET}/${file}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${s.key}`, apikey: s.key, "Content-Type": img.mime, "x-upsert": "true" },
+      body: img.buf,
+    });
+    if (!r.ok) throw new Error(`Supabase Storage: ${r.status} ${await r.text()}`);
+    return `${s.url}/storage/v1/object/public/${BUCKET}/${file}`;
+  }
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  fs.writeFileSync(path.join(uploadsDir, file), img.buf);
+  return `/uploads/${file}`;
+}

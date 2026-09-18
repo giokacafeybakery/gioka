@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { get, all } from "../db.js";
+import { get, all, localDay, localHour } from "../db.js";
 import { lowStock } from "./inventory.js";
 
 const r = Router();
@@ -17,23 +17,23 @@ function range(req) {
 const VALID = "o.status <> 'cancelled'";
 const localISO = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
 
-r.get("/summary", (req, res) => {
+r.get("/summary", async (req, res) => {
   const { from, end, fromDate, endDate } = range(req);
   const days = Math.max(1, Math.round((endDate - fromDate) / 86400000));
   const prevFrom = new Date(fromDate); prevFrom.setDate(prevFrom.getDate() - days);
 
-  const cur = get(`SELECT COUNT(*) orders, COALESCE(SUM(total),0) revenue, COALESCE(SUM(discount),0) discounts,
-      COALESCE(AVG(total),0) avg_ticket FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<?`, from, end);
-  const prev = get(`SELECT COUNT(*) orders, COALESCE(SUM(total),0) revenue FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<?`, prevFrom.toISOString(), from);
-  const cost = get(`SELECT COALESCE(SUM(oi.qty * p.cost),0) c FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id
-      WHERE ${VALID} AND o.created_at>=? AND o.created_at<?`, from, end).c;
-  const items = get(`SELECT COALESCE(SUM(oi.qty),0) n FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE ${VALID} AND o.created_at>=? AND o.created_at<?`, from, end).n;
-  const cancelled = get("SELECT COUNT(*) n FROM orders WHERE status='cancelled' AND created_at>=? AND created_at<?", from, end).n;
-  const unpaid = get(`SELECT COUNT(*) n, COALESCE(SUM(total),0) t FROM orders o WHERE ${VALID} AND paid=0 AND created_at>=? AND created_at<?`, from, end);
+  const cur = await get(`SELECT COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue, COALESCE(SUM(discount),0) AS discounts,
+      COALESCE(AVG(total),0) AS avg_ticket FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<?`, from, end);
+  const prev = await get(`SELECT COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<?`, prevFrom.toISOString(), from);
+  const cost = (await get(`SELECT COALESCE(SUM(oi.qty * p.cost),0) AS c FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id
+      WHERE ${VALID} AND o.created_at>=? AND o.created_at<?`, from, end)).c;
+  const items = (await get(`SELECT COALESCE(SUM(oi.qty),0) AS n FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE ${VALID} AND o.created_at>=? AND o.created_at<?`, from, end)).n;
+  const cancelled = (await get("SELECT COUNT(*) AS n FROM orders WHERE status='cancelled' AND created_at>=? AND created_at<?", from, end)).n;
+  const unpaid = await get(`SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS t FROM orders o WHERE ${VALID} AND paid=0 AND created_at>=? AND created_at<?`, from, end);
 
-  const daily = all(`SELECT date(created_at,'localtime') day, COUNT(*) orders, COALESCE(SUM(total),0) revenue,
-      COALESCE(SUM((SELECT SUM(oi.qty*COALESCE(p.cost,0)) FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id)),0) cost
-      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY day ORDER BY day`, from, end);
+  const daily = await all(`SELECT ${localDay("o.created_at")} AS day, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue,
+      COALESCE(SUM((SELECT SUM(oi.qty*COALESCE(p.cost,0)) FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=o.id)),0) AS cost
+      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY 1 ORDER BY 1`, from, end);
   // Fill missing days
   const byDay = Object.fromEntries(daily.map((d) => [d.day, d]));
   const series = [];
@@ -42,21 +42,21 @@ r.get("/summary", (req, res) => {
     series.push(byDay[key] || { day: key, orders: 0, revenue: 0, cost: 0 });
   }
 
-  const hourly = all(`SELECT CAST(strftime('%H', datetime(created_at,'localtime')) AS INTEGER) hour, COUNT(*) orders, COALESCE(SUM(total),0) revenue
-      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY hour ORDER BY hour`, from, end);
+  const hourly = await all(`SELECT ${localHour("o.created_at")} AS hour, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
+      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY 1 ORDER BY 1`, from, end);
 
-  const payments = all(`SELECT COALESCE(payment_method,'unpaid') method, COUNT(*) orders, COALESCE(SUM(total),0) revenue
-      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY method`, from, end);
-  const types = all(`SELECT type, COUNT(*) orders, COALESCE(SUM(total),0) revenue FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY type`, from, end);
+  const payments = await all(`SELECT COALESCE(payment_method,'unpaid') AS method, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
+      FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY 1`, from, end);
+  const types = await all(`SELECT type, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue FROM orders o WHERE ${VALID} AND created_at>=? AND created_at<? GROUP BY type`, from, end);
 
-  const topProducts = all(`SELECT oi.name, oi.emoji, SUM(oi.qty) qty, SUM(oi.qty*oi.price) revenue, SUM(oi.qty*COALESCE(p.cost,0)) cost, c.name category, c.color color
+  const topProducts = await all(`SELECT oi.name, oi.emoji, SUM(oi.qty) AS qty, SUM(oi.qty*oi.price) AS revenue, SUM(oi.qty*COALESCE(p.cost,0)) AS cost, c.name AS category, c.color AS color
       FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN categories c ON c.id=p.category_id
-      WHERE ${VALID} AND o.created_at>=? AND o.created_at<? GROUP BY oi.name ORDER BY qty DESC LIMIT 10`, from, end);
-  const categories = all(`SELECT COALESCE(c.name,'Sin categoría') name, COALESCE(c.color,'#9ca3af') color, SUM(oi.qty) qty, SUM(oi.qty*oi.price) revenue
+      WHERE ${VALID} AND o.created_at>=? AND o.created_at<? GROUP BY oi.name, oi.emoji, c.name, c.color ORDER BY qty DESC LIMIT 10`, from, end);
+  const categories = await all(`SELECT COALESCE(c.name,'Sin categoría') AS name, COALESCE(c.color,'#9ca3af') AS color, SUM(oi.qty) AS qty, SUM(oi.qty*oi.price) AS revenue
       FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN categories c ON c.id=p.category_id
-      WHERE ${VALID} AND o.created_at>=? AND o.created_at<? GROUP BY c.id ORDER BY revenue DESC`, from, end);
+      WHERE ${VALID} AND o.created_at>=? AND o.created_at<? GROUP BY c.id, c.name, c.color ORDER BY revenue DESC`, from, end);
 
-  const avgPrep = get(`SELECT AVG((julianday(ready_at)-julianday(created_at))*24*60) m FROM orders o WHERE ready_at IS NOT NULL AND created_at>=? AND created_at<?`, from, end).m;
+  const avgPrep = (await get(`SELECT AVG(EXTRACT(EPOCH FROM (ready_at::timestamptz - created_at::timestamptz))/60) AS m FROM orders o WHERE ready_at IS NOT NULL AND created_at>=? AND created_at<?`, from, end)).m;
 
   const pct = (a, b) => (b ? ((a - b) / b) * 100 : a ? 100 : 0);
   res.json({
@@ -70,7 +70,7 @@ r.get("/summary", (req, res) => {
       avg_prep_minutes: avgPrep || 0,
     },
     series, hourly, payments, types, topProducts, categories,
-    lowStock: lowStock(),
+    lowStock: await lowStock(),
   });
 });
 

@@ -4,7 +4,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
-import { get, now } from "./db.js";
+import { get, now, initDb } from "./db.js";
+import { ensureBucket } from "./storage.js";
 import authRoutes, { requireAuth, requireRole } from "./routes/auth.js";
 import catalogRoutes from "./routes/catalog.js";
 import orderRoutes from "./routes/orders.js";
@@ -23,15 +24,15 @@ app.use(express.json({ limit: "12mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 // Attach user (if token present) to every request
-app.use((req, _res, next) => {
+app.use(async (req, _res, next) => {
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (token) {
-    const row = get(
+  if (token) try {
+    const row = await get(
       "SELECT u.id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND u.active=1",
       token,
     );
     if (row) req.user = row;
-  }
+  } catch (e) { return next(e); }
   next();
 });
 
@@ -63,6 +64,13 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🐼 Gioka server listo en http://localhost:${PORT}`);
-});
+try {
+  await initDb();
+  const bucket = await ensureBucket();
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🐼 Gioka server listo en http://localhost:${PORT} · Postgres (Supabase)${bucket ? " · Storage" : ""}`);
+  });
+} catch (e) {
+  console.error("No se pudo iniciar:", e.message);
+  process.exit(1);
+}

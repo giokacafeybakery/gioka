@@ -1,16 +1,65 @@
-import { DatabaseSync } from "node:sqlite";
+// Data layer on Postgres (Supabase). Same helper names as before (get/all/run) but async;
+// SQL keeps `?` placeholders which are rewritten to $1..$n. Inside `transaction()` every helper
+// automatically uses the transaction's client (AsyncLocalStorage), so nested code needs no plumbing.
+import pg from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import path from "node:path";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
+import { loadEnv } from "./env.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "..", "data");
-fs.mkdirSync(dataDir, { recursive: true });
+loadEnv();
 
-export const db = new DatabaseSync(path.join(dataDir, "gioka.db"));
-db.exec("PRAGMA journal_mode = WAL");
-db.exec("PRAGMA foreign_keys = ON");
+if (!process.env.DATABASE_URL) {
+  console.error("Falta DATABASE_URL en server/.env (cadena de conexión de Supabase).");
+  process.exit(1);
+}
+
+// int8 / numeric come back as strings by default → numbers (COUNT, SUM, AVG)
+pg.types.setTypeParser(20, Number);
+pg.types.setTypeParser(1700, Number);
+
+export const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
+  max: 8,
+  idleTimeoutMillis: 30_000,
+});
+pool.on("error", (e) => console.error("Postgres pool:", e.message));
+
+const als = new AsyncLocalStorage();
+const client = () => als.getStore() || pool;
+const toPg = (sql) => { let i = 0; return sql.replace(/\?/g, () => `$${++i}`); };
+const ID_TABLES = /^\s*INSERT\s+INTO\s+(users|categories|products|ingredients|stock_movements|cash_sessions|orders|order_items)\b/i;
+
+export async function query(sql, params = []) {
+  return client().query(toPg(sql), params);
+}
+export const get = async (sql, ...p) => (await query(sql, p)).rows[0];
+export const all = async (sql, ...p) => (await query(sql, p)).rows;
+export async function run(sql, ...p) {
+  const returning = ID_TABLES.test(sql) && !/RETURNING/i.test(sql);
+  const r = await query(returning ? `${sql} RETURNING id` : sql, p);
+  return { changes: r.rowCount, lastInsertRowid: r.rows[0]?.id };
+}
+/** Run fn inside BEGIN/COMMIT; get/all/run called (transitively) within it use the same connection. */
+export async function transaction(fn) {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    const out = await als.run(c, fn);
+    await c.query("COMMIT");
+    return out;
+  } catch (e) {
+    await c.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+export const TZ = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+/** SQL fragments for local-day grouping (dates are stored as ISO UTC text). */
+export const localDay = (col) => `to_char((${col})::timestamptz AT TIME ZONE '${TZ.replace(/'/g, "")}', 'YYYY-MM-DD')`;
+export const localHour = (col) => `EXTRACT(HOUR FROM (${col})::timestamptz AT TIME ZONE '${TZ.replace(/'/g, "")}')::int`;
 
 export const hashPassword = (password) => {
   const salt = randomBytes(16).toString("hex");
@@ -26,65 +75,66 @@ export const verifyPassword = (password, stored) => {
 export const newToken = () => randomBytes(24).toString("hex");
 export const now = () => new Date().toISOString();
 
-db.exec(`
+const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  email TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email));
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   emoji TEXT NOT NULL DEFAULT '🍽️',
   color TEXT NOT NULL DEFAULT '#F2915A',
   sort INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS products (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
-  price REAL NOT NULL DEFAULT 0,
-  cost REAL NOT NULL DEFAULT 0,
+  price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cost DOUBLE PRECISION NOT NULL DEFAULT 0,
   emoji TEXT NOT NULL DEFAULT '🍽️',
   image TEXT,
   active INTEGER NOT NULL DEFAULT 1,
   track_stock INTEGER NOT NULL DEFAULT 0,
-  stock REAL NOT NULL DEFAULT 0,
-  min_stock REAL NOT NULL DEFAULT 5,
+  stock DOUBLE PRECISION NOT NULL DEFAULT 0,
+  min_stock DOUBLE PRECISION NOT NULL DEFAULT 5,
   sort INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ingredients (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   unit TEXT NOT NULL DEFAULT 'u',
-  stock REAL NOT NULL DEFAULT 0,
-  min_stock REAL NOT NULL DEFAULT 0,
-  cost REAL NOT NULL DEFAULT 0,
+  stock DOUBLE PRECISION NOT NULL DEFAULT 0,
+  min_stock DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cost DOUBLE PRECISION NOT NULL DEFAULT 0,
   supplier TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS product_ingredients (
   product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
-  qty REAL NOT NULL DEFAULT 1,
+  qty DOUBLE PRECISION NOT NULL DEFAULT 1,
   PRIMARY KEY (product_id, ingredient_id)
 );
 CREATE TABLE IF NOT EXISTS stock_movements (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   item_type TEXT NOT NULL CHECK(item_type IN ('product','ingredient')),
   item_id INTEGER NOT NULL,
-  qty REAL NOT NULL,
+  qty DOUBLE PRECISION NOT NULL,
   reason TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   photo TEXT,
@@ -93,17 +143,17 @@ CREATE TABLE IF NOT EXISTS stock_movements (
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS cash_sessions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
-  opening_amount REAL NOT NULL DEFAULT 0,
-  closing_amount REAL,
-  expected_amount REAL,
+  opening_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  closing_amount DOUBLE PRECISION,
+  expected_amount DOUBLE PRECISION,
   notes TEXT NOT NULL DEFAULT '',
   opened_at TEXT NOT NULL,
   closed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
   daily_number INTEGER NOT NULL,
   type TEXT NOT NULL CHECK(type IN ('takeaway','delivery','dinein')),
@@ -113,11 +163,11 @@ CREATE TABLE IF NOT EXISTS orders (
   status TEXT NOT NULL CHECK(status IN ('pending','preparing','ready','delivered','cancelled')),
   payment_method TEXT CHECK(payment_method IN ('cash','card','qr')),
   paid INTEGER NOT NULL DEFAULT 0,
-  subtotal REAL NOT NULL DEFAULT 0,
-  discount REAL NOT NULL DEFAULT 0,
-  tax REAL NOT NULL DEFAULT 0,
-  total REAL NOT NULL DEFAULT 0,
-  cash_received REAL,
+  subtotal DOUBLE PRECISION NOT NULL DEFAULT 0,
+  discount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  tax DOUBLE PRECISION NOT NULL DEFAULT 0,
+  total DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cash_received DOUBLE PRECISION,
   notes TEXT NOT NULL DEFAULT '',
   user_id INTEGER REFERENCES users(id),
   cash_session_id INTEGER REFERENCES cash_sessions(id),
@@ -128,12 +178,12 @@ CREATE TABLE IF NOT EXISTS orders (
   delivered_at TEXT
 );
 CREATE TABLE IF NOT EXISTS order_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   emoji TEXT NOT NULL DEFAULT '',
-  price REAL NOT NULL,
+  price DOUBLE PRECISION NOT NULL,
   qty INTEGER NOT NULL,
   notes TEXT NOT NULL DEFAULT ''
 );
@@ -143,30 +193,20 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-`);
+CREATE INDEX IF NOT EXISTS idx_movements_created ON stock_movements(created_at);
+`;
 
-// ---------- helpers ----------
-export const get = (sql, ...p) => db.prepare(sql).get(...p);
-export const all = (sql, ...p) => db.prepare(sql).all(...p);
-export const run = (sql, ...p) => db.prepare(sql).run(...p);
-
-export function getSettings() {
-  const rows = all("SELECT key, value FROM settings");
+export async function getSettings() {
   const s = {};
-  for (const r of rows) {
+  for (const r of await all("SELECT key, value FROM settings")) {
     try { s[r.key] = JSON.parse(r.value); } catch { s[r.key] = r.value; }
   }
   return s;
 }
-export function setSetting(key, value) {
-  run(
-    "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-    key,
-    JSON.stringify(value),
-  );
+export async function setSetting(key, value) {
+  await run("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, JSON.stringify(value));
 }
 
-// ---------- seed ----------
 const DEFAULT_SETTINGS = {
   business_name: "Gioka",
   business_tagline: "Café · Heladería · Bakery",
@@ -184,61 +224,25 @@ const DEFAULT_SETTINGS = {
   public_url: "",
 };
 
-for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-  if (!get("SELECT 1 FROM settings WHERE key=?", k)) setSetting(k, v);
-}
-
-// Migration: databases created with the old PIN login → email + password
-const userCols = all("PRAGMA table_info(users)").map((c) => c.name);
-if (!userCols.includes("email")) {
-  db.exec("PRAGMA foreign_keys = OFF");
-  db.exec(`
-    CREATE TABLE users_new (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')), active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
-    INSERT INTO users_new(id,name,email,password_hash,role,active,created_at)
-      SELECT id, name, role || id || '@gioka.local', '', role, active, created_at FROM users;
-    DROP TABLE users; ALTER TABLE users_new RENAME TO users;
-    DELETE FROM sessions;`);
-  for (const u of all("SELECT id, role FROM users ORDER BY id")) {
-    const email = get("SELECT 1 FROM users WHERE email=?", `${u.role}@gioka.com`) ? `${u.role}${u.id}@gioka.com` : `${u.role}@gioka.com`;
-    run("UPDATE users SET email=?, password_hash=? WHERE id=?", email, hashPassword(u.role + "123"), u.id);
+/** Create tables (idempotent) and seed demo data on an empty database. Called once at startup. */
+export async function initDb() {
+  await pool.query(SCHEMA);
+  for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
+    if (!(await get("SELECT 1 FROM settings WHERE key=?", k))) await setSetting(k, v);
   }
-  db.exec("PRAGMA foreign_keys = ON");
+  if (!(await get("SELECT 1 FROM users LIMIT 1"))) {
+    const t = now();
+    for (const [name, email, pass, role] of [
+      ["Administrador", "admin@gioka.com", "admin123", "admin"],
+      ["Cajero", "cajero@gioka.com", "cajero123", "cajero"],
+      ["Cocina", "cocina@gioka.com", "cocina123", "cocina"],
+      ["Inventario", "inventario@gioka.com", "inventario123", "inventario"],
+    ]) await run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", name, email, hashPassword(pass), role, t);
+  }
+  if (!(await get("SELECT 1 FROM categories LIMIT 1"))) await seedCatalog();
 }
 
-// Migration: allow the 'inventario' role (SQLite CHECK constraints need a table rebuild)
-const usersSql = get("SELECT sql FROM sqlite_master WHERE name='users'")?.sql || "";
-if (!usersSql.includes("'inventario'")) {
-  db.exec("PRAGMA foreign_keys = OFF");
-  db.exec(`
-    CREATE TABLE users_new (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')), active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
-    INSERT INTO users_new SELECT id,name,email,password_hash,role,active,created_at FROM users;
-    DROP TABLE users; ALTER TABLE users_new RENAME TO users;`);
-  db.exec("PRAGMA foreign_keys = ON");
-}
-// Migration: photo + notes on stock movements
-const movCols = all("PRAGMA table_info(stock_movements)").map((c) => c.name);
-if (!movCols.includes("photo")) db.exec("ALTER TABLE stock_movements ADD COLUMN photo TEXT");
-if (!movCols.includes("notes")) db.exec("ALTER TABLE stock_movements ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
-
-if (!get("SELECT 1 FROM users LIMIT 1")) {
-  const t = now();
-  run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Administrador", "admin@gioka.com", hashPassword("admin123"), "admin", t);
-  run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Cajero", "cajero@gioka.com", hashPassword("cajero123"), "cajero", t);
-  run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Cocina", "cocina@gioka.com", hashPassword("cocina123"), "cocina", t);
-  run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Inventario", "inventario@gioka.com", hashPassword("inventario123"), "inventario", t);
-}
-// One-time: add the demo inventory manager to databases created before the role existed
-if (!get("SELECT 1 FROM settings WHERE key='seed_inventario_done'")) {
-  if (!get("SELECT 1 FROM users WHERE role='inventario'") && !get("SELECT 1 FROM users WHERE email='inventario@gioka.com'"))
-    run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", "Inventario", "inventario@gioka.com", hashPassword("inventario123"), "inventario", now());
-  setSetting("seed_inventario_done", true);
-}
-
-if (!get("SELECT 1 FROM categories LIMIT 1")) {
+async function seedCatalog() {
   const t = now();
   const cats = [
     ["Café", "☕", "#C98B5E", 1],
@@ -248,8 +252,7 @@ if (!get("SELECT 1 FROM categories LIMIT 1")) {
     ["Bebidas", "🥤", "#6CC5E8", 5],
     ["Salados", "🥪", "#7ED0A5", 6],
   ];
-  const ins = db.prepare("INSERT INTO categories(name,emoji,color,sort) VALUES(?,?,?,?)");
-  for (const c of cats) ins.run(...c);
+  for (const c of cats) await run("INSERT INTO categories(name,emoji,color,sort) VALUES(?,?,?,?)", ...c);
 
   const ings = [
     ["Leche", "L", 30, 10, 1.2, "Lácteos del Valle"],
@@ -265,13 +268,10 @@ if (!get("SELECT 1 FROM categories LIMIT 1")) {
     ["Conos de waffle", "u", 45, 60, 0.15, "Empaques Pro"],
     ["Pan de hamburguesa", "u", 20, 15, 0.35, "Molinos Sur"],
   ];
-  const insI = db.prepare(
-    "INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at) VALUES(?,?,?,?,?,?,?)",
-  );
-  for (const i of ings) insI.run(...i, t);
+  for (const i of ings) await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at) VALUES(?,?,?,?,?,?,?)", ...i, t);
 
-  const catId = (n) => get("SELECT id FROM categories WHERE name=?", n).id;
-  const ingId = (n) => get("SELECT id FROM ingredients WHERE name=?", n).id;
+  const catId = async (n) => (await get("SELECT id FROM categories WHERE name=?", n)).id;
+  const ingId = async (n) => (await get("SELECT id FROM ingredients WHERE name=?", n)).id;
   const prods = [
     // name, desc, price, cost, emoji, cat, track, stock, min, recipe
     ["Espresso", "Doble shot de café de origen, intenso y aromático.", 2.5, 0.6, "☕", "Café", 0, 0, 0, [["Café en grano", 0.018]]],
@@ -298,13 +298,12 @@ if (!get("SELECT 1 FROM categories LIMIT 1")) {
     ["Tostada de Palta", "Pan de masa madre, palta y huevo pochado.", 6.4, 2.0, "🥑", "Salados", 0, 0, 0, [["Huevos", 1], ["Harina", 0.05]]],
     ["Croque Monsieur", "Jamón, queso gruyere y bechamel gratinado.", 6.2, 2.1, "🧀", "Salados", 0, 0, 0, [["Harina", 0.05], ["Mantequilla", 0.02]]],
   ];
-  const insP = db.prepare(
-    "INSERT INTO products(category_id,name,description,price,cost,emoji,active,track_stock,stock,min_stock,sort,created_at) VALUES(?,?,?,?,?,?,1,?,?,?,?,?)",
-  );
-  const insR = db.prepare("INSERT INTO product_ingredients(product_id,ingredient_id,qty) VALUES(?,?,?)");
-  prods.forEach((p, i) => {
+  for (const [i, p] of prods.entries()) {
     const [name, desc, price, cost, emoji, cat, track, stock, min, recipe] = p;
-    const r = insP.run(catId(cat), name, desc, price, cost, emoji, track, stock, min, i, t);
-    for (const [ing, qty] of recipe) insR.run(r.lastInsertRowid, ingId(ing), qty);
-  });
+    const r = await run(
+      "INSERT INTO products(category_id,name,description,price,cost,emoji,active,track_stock,stock,min_stock,sort,created_at) VALUES(?,?,?,?,?,?,1,?,?,?,?,?)",
+      await catId(cat), name, desc, price, cost, emoji, track, stock, min, i, t,
+    );
+    for (const [ing, qty] of recipe) await run("INSERT INTO product_ingredients(product_id,ingredient_id,qty) VALUES(?,?,?)", r.lastInsertRowid, await ingId(ing), qty);
+  }
 }

@@ -8,16 +8,20 @@ Interface em espanhol, identidade visual do panda Gioka.
 
 ## Requisitos
 
-- **Node.js 24+** (usa o SQLite nativo do Node — nenhuma dependência nativa para compilar)
+- **Node.js 24+** (nenhuma dependência nativa para compilar)
+- Um projeto **Supabase** (Postgres + Storage). O banco e as fotos ficam na nuvem, então vários PCs/celulares usam os mesmos dados.
 - Windows, macOS ou Linux
 
 ## Instalação e uso
 
 ```bash
 npm install          # instala server + client
+cp server/.env.example server/.env   # e preencha DATABASE_URL (+ SUPABASE_URL / SUPABASE_SERVICE_KEY para fotos)
 npm run build        # compila o front-end
 npm start            # abre em http://localhost:3001
 ```
+
+Na primeira execução o servidor cria as tabelas no Postgres e carrega os dados de demonstração (usuários, categorias, insumos e produtos).
 
 No Windows, basta dar dois cliques em **`start-gioka.cmd`** (instala, compila e abre o navegador).
 
@@ -99,11 +103,13 @@ Instalação: abra o endereço do servidor no celular (mesma rede Wi‑Fi) e toq
 
 ```
 gioka/
-├── server/                 Node + Express + Socket.IO + SQLite (node:sqlite)
-│   ├── src/db.js           esquema, seed inicial e ajustes
+├── server/                 Node + Express + Socket.IO + Postgres (pg → Supabase)
+│   ├── src/db.js           esquema, seed inicial, helpers get/all/run/transaction
+│   ├── src/storage.js      fotos em Supabase Storage (ou server/uploads sem Supabase)
+│   ├── scripts/supabase-admin.mjs  utilitário da Management API (listar projetos, rodar SQL)
 │   ├── src/escpos.js       gerador ESC/POS + envio TCP
 │   └── src/routes/         auth, catalog, orders, inventory, reports, settings, print, cash
-│   └── data/gioka.db       banco de dados (criado automaticamente)
+│   └── .env                DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY (não versionado)
 ├── client/                 Vite + React + TypeScript + Tailwind v4 + PWA
 │   ├── src/pages/          Login, Pos, Pedidos, Caja, Inventario, Admin, Reportes, Pantalla, Seguir
 │   ├── src/components/     AppShell (sidebar), Logo (panda SVG), Receipt, ui
@@ -113,7 +119,7 @@ gioka/
 
 ## Backup
 
-Todo o sistema fica em `server/data/gioka.db` (mais as fotos em `server/uploads/`). Copie essa pasta para fazer backup.
+Os dados ficam no Postgres do Supabase (backups diários automáticos no plano do projeto; também é possível exportar em *Database → Backups*). As fotos ficam no bucket `gioka` do Supabase Storage.
 
 ## Rede local
 
