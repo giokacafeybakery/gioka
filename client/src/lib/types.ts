@@ -19,7 +19,7 @@ export interface Product {
 export interface Ingredient { id: number; name: string; unit: string; stock: number; min_stock: number; cost: number; supplier: string; used_in?: number }
 
 export type OrderType = "takeaway" | "delivery" | "dinein";
-export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled";
+export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";
 export type PaymentMethod = "cash" | "card" | "qr";
 
 /** `price` is the unit price already including the extras of `options`. */
@@ -30,6 +30,7 @@ export interface Order {
   status: OrderStatus; payment_method: PaymentMethod | null; paid: boolean; subtotal: number; discount: number; tax: number; total: number;
   cash_received: number | null; notes: string; user_id: number; user_name?: string; created_at: string; updated_at: string;
   paid_at: string | null; ready_at: string | null; delivered_at: string | null; items: OrderItem[];
+  refund_method: string | null; refund_amount: number | null; refunded_at: string | null; refund_reason?: string | null;
 }
 export interface PublicOrder {
   code: string; daily_number: number; status: OrderStatus; type: OrderType; customer_name: string; created_at: string;
@@ -56,6 +57,7 @@ export interface ReportSummary {
   kpis: {
     revenue: number; revenue_change: number; orders: number; orders_change: number; avg_ticket: number; items: number; cost: number;
     profit: number; margin: number; discounts: number; cancelled: number; unpaid_orders: number; unpaid_total: number; avg_prep_minutes: number;
+    refunds: number; refunded_total: number;
   };
   series: { day: string; orders: number; revenue: number; cost: number }[];
   hourly: { hour: number; orders: number; revenue: number }[];

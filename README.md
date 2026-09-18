@@ -8,7 +8,7 @@ Interface em espanhol, identidade visual do panda Gioka.
 
 ## Requisitos
 
-- **Node.js 24+** (nenhuma dependência nativa para compilar)
+- **Node.js 22+** (nenhuma dependência nativa para compilar)
 - Um projeto **Supabase** (Postgres + Storage). O banco e as fotos ficam na nuvem, então vários PCs/celulares usam os mesmos dados.
 - Windows, macOS ou Linux
 

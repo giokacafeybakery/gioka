@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /pantalla
+Allow: /seguir/
+Disallow: /api/
+Disallow: /pos
+Disallow: /pedidos
+Disallow: /caja
+Disallow: /inventario
+Disallow: /reportes
+Disallow: /admin
+Disallow: /app
+Disallow: /login
+
+Sitemap: /sitemap.xml

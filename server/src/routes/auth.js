@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { get, all, run, hashPassword, verifyPassword, newToken, now } from "../db.js";
+import { loginLimiter } from "../app.js";
 
 export const requireAuth = (req, res, next) =>
   req.user ? next() : res.status(401).json({ error: "No autorizado" });
@@ -20,13 +21,15 @@ export async function authenticate(email, password) {
 
 const r = Router();
 
-r.post("/login", async (req, res) => {
+r.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "Ingresa tu correo y contraseña" });
   const user = await authenticate(email, password);
   if (!user) return res.status(401).json({ error: "Correo o contraseña incorrectos" });
   const token = newToken();
-  await run("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", token, user.id, now());
+  const t = now();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  await run("INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES(?,?,?,?)", token, user.id, t, expiresAt);
   res.json({ token, user: publicUser(user) });
 });
 

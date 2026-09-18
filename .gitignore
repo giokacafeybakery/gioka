@@ -10,3 +10,5 @@ client/dev-dist
 .DS_Store
 Thumbs.db
 client/tsconfig.tsbuildinfo
+scratchpad/
+son/

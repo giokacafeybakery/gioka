@@ -25,8 +25,8 @@ export async function loadOrder(ref) {
   o.paid = !!o.paid; o.offline = !!o.offline;
   return o;
 }
-export async function loadOrders(where = "", ...params) {
-  const rows = await all(`SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id ${where} ORDER BY o.created_at DESC`, ...params);
+export async function loadOrders(where = "", params = [], { limit = 50, offset = 0 } = {}) {
+  const rows = await all(`SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id ${where} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`, ...params, limit, offset);
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
   const items = await all(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);
@@ -141,7 +141,7 @@ export default function ordersRoutes() {
 
   // Public: board for the customer display (today's active orders)
   r.get("/board", async (_req, res) => {
-    const rows = await loadOrders("WHERE o.created_at >= ? AND o.status IN ('pending','preparing','ready')", localDayStart());
+    const rows = await loadOrders("WHERE o.created_at >= ? AND o.status IN ('pending','preparing','ready')", [localDayStart()]);
     res.json(rows.map(publicView));
   });
 
@@ -158,7 +158,9 @@ export default function ordersRoutes() {
     } else if (!active) {
       conds.push("o.created_at >= ?"); params.push(localDayStart());
     }
-    res.json(await loadOrders(conds.length ? "WHERE " + conds.join(" AND ") : "", ...params));
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    res.json(await loadOrders(conds.length ? "WHERE " + conds.join(" AND ") : "", params, { limit, offset }));
   });
 
   r.get("/:id", async (req, res) => {
@@ -252,14 +254,14 @@ export default function ordersRoutes() {
     const o = await loadOrder(req.params.id);
     if (!o) return res.status(404).json({ error: "No existe" });
     const { status } = req.body;
-    if (!["pending", "preparing", "ready", "delivered", "cancelled"].includes(status)) return res.status(400).json({ error: "Estado inválido" });
+    if (!["pending", "preparing", "ready", "delivered", "cancelled", "refunded"].includes(status)) return res.status(400).json({ error: "Estado inválido" });
     // Who may move an order: cocina drives the kitchen flow, cajero only hands it over, admin does everything.
     if (req.user.role === "cajero" && status !== "delivered") return res.status(403).json({ error: "El cajero solo puede marcar el pedido como entregado" });
     if (req.user.role === "cocina" && ["delivered", "cancelled"].includes(status)) return res.status(403).json({ error: "Sin permisos" });
     if (status === "delivered" && o.status !== "ready") return res.status(400).json({ error: "El pedido aún no está listo" });
     const replay = !!(clientId(req.body.op_id) && req.body.offline);
     if (o.status === status) return res.json(o); // idempotent (retry / offline replay)
-    if (o.status === "cancelled") return replay ? res.json(o) : res.status(400).json({ error: "El pedido ya fue cancelado" });
+    if (o.status === "cancelled" || o.status === "refunded") return replay ? res.json(o) : res.status(400).json({ error: `El pedido ya fue ${o.status === "cancelled" ? "cancelado" : "devuelto"}` });
     const t = replay ? clientTime(req.body.at) : now();
     if (status === "cancelled") {
       if (req.user.role !== "admin") return res.status(403).json({ error: "Solo un administrador puede cancelar pedidos" });
@@ -267,6 +269,48 @@ export default function ordersRoutes() {
     }
     await run("UPDATE orders SET status=?, updated_at=?, ready_at=CASE WHEN ?::text='ready' THEN ? ELSE ready_at END, delivered_at=CASE WHEN ?::text='delivered' THEN ? ELSE delivered_at END WHERE id=?",
       status, t, status, t, status, t, o.id);
+    const order = await loadOrder(o.id);
+    emit("order:updated", order);
+    res.json(order);
+  });
+
+  // ---- Refund: only admin can process a return on a paid order ----
+  r.post("/:id/refund", async (req, res) => {
+    if (req.user.role !== "admin") return res.status(403).json({ error: "Solo un administrador puede procesar devoluciones" });
+    const o = await loadOrder(req.params.id);
+    if (!o) return res.status(404).json({ error: "No existe" });
+    if (o.status === "refunded") return res.json(o); // idempotent
+    if (!o.paid) return res.status(400).json({ error: "El pedido no está pagado, no se puede devolver" });
+    if (o.status === "cancelled") return res.status(400).json({ error: "El pedido está cancelado" });
+    const { refund_method } = req.body;
+    if (!["cash", "card", "qr"].includes(refund_method)) return res.status(400).json({ error: "Indica el método de devolución" });
+    const t = now();
+    await transaction(async () => {
+      await applyStock(o, +1, req.user.id, t); // restore stock
+      await run("UPDATE orders SET status='refunded', refund_method=?, refund_amount=?, refunded_at=?, updated_at=? WHERE id=?",
+        refund_method, o.total, t, t, o.id);
+    });
+    const order = await loadOrder(o.id);
+    emit("order:updated", order);
+    res.json(order);
+  });
+
+  // ---- Refund: only admin can process a return on a paid order ----
+  r.post("/:id/refund", async (req, res) => {
+    if (req.user.role !== "admin") return res.status(403).json({ error: "Solo un administrador puede procesar devoluciones" });
+    const o = await loadOrder(req.params.id);
+    if (!o) return res.status(404).json({ error: "No existe" });
+    if (o.status === "refunded") return res.json(o); // idempotent
+    if (!o.paid) return res.status(400).json({ error: "El pedido no está pagado, no se puede devolver" });
+    if (o.status === "cancelled") return res.status(400).json({ error: "El pedido está cancelado" });
+    const { refund_method } = req.body;
+    if (!["cash", "card", "qr"].includes(refund_method)) return res.status(400).json({ error: "Indica el método de devolución" });
+    const t = now();
+    await transaction(async () => {
+      await applyStock(o, +1, req.user.id, t); // restore stock
+      await run("UPDATE orders SET status='refunded', refund_method=?, refund_amount=?, refunded_at=?, updated_at=? WHERE id=?",
+        refund_method, o.total, t, t, o.id);
+    });
     const order = await loadOrder(o.id);
     emit("order:updated", order);
     res.json(order);

@@ -9,7 +9,8 @@
     "dev": "concurrently -n server,client -c green,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
-    "setup": "npm install && npm run build"
+    "setup": "npm install && npm run build",
+    "lint": "npm run --workspace=client typecheck"
   },
   "workspaces": ["server", "client"],
   "devDependencies": {

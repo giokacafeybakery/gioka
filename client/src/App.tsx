@@ -19,6 +19,7 @@ const Reportes = lazy(() => import("@/pages/Reportes"));
 const Pantalla = lazy(() => import("@/pages/Pantalla"));
 const Seguir = lazy(() => import("@/pages/Seguir"));
 const MobileApp = lazy(() => import("@/app/routes"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
 function Guard({ roles }: { roles?: Role[] }) {
   const user = useAuth((s) => s.user);
@@ -62,7 +63,7 @@ export default function App() {
             </Route>
           </Route>
           <Route path="/" element={<Home />} />
-          <Route path="*" element={<Home />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
       <Toasts />

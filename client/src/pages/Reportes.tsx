@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
-import { TrendingUp, TrendingDown, Receipt, Coins, PiggyBank, AlertTriangle, Clock, Download, Ban, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Receipt, Coins, PiggyBank, AlertTriangle, Clock, Download, Ban, RefreshCw, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Loading, Empty, Segmented } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -50,6 +50,10 @@ export default function Reportes() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `gioka-ventas-${from}_${to}.csv`; a.click();
   };
 
+  const exportFullCsv = () => {
+    const a = document.createElement("a"); a.href = `/api/reports/csv?from=${from}&to=${to}`; a.download = ""; a.click();
+  };
+
   const k = data?.kpis;
   const Delta = ({ v }: { v: number }) => <span className={`inline-flex items-center gap-0.5 text-xs font-black ${v >= 0 ? "text-mint-2" : "text-berry"}`}>{v >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}{v >= 0 ? "+" : ""}{num(v, 0)}%</span>;
 
@@ -58,6 +62,7 @@ export default function Reportes() {
       <PageHeader title="Reportes" subtitle={data ? `${data.range.from} → ${data.range.to} · ${data.range.days} día${data.range.days > 1 ? "s" : ""}` : "Ventas, ganancias y stock"}>
         <button className="btn-icon btn-ghost" onClick={load} title="Actualizar"><RefreshCw size={18} className={busy ? "animate-spin" : ""} /></button>
         <button className="btn-soft btn-sm" onClick={exportCsv} disabled={!data}><Download size={15} /> CSV</button>
+        <button className="btn-soft btn-sm" onClick={exportFullCsv} disabled={!data}><Download size={15} /> CSV Completo</button>
       </PageHeader>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6 space-y-4">
@@ -96,6 +101,7 @@ export default function Reportes() {
               <div className="flex flex-wrap gap-2">
                 {k.unpaid_orders > 0 && <span className="chip bg-berry-soft text-berry"><Receipt size={14} /> {k.unpaid_orders} pedidos sin cobrar · {money(k.unpaid_total)}</span>}
                 {k.cancelled > 0 && <span className="chip bg-cream-2 text-ink-3"><Ban size={14} /> {k.cancelled} cancelados</span>}
+                {k.refunds > 0 && <span className="chip bg-lilac-soft text-[#7b5dbd]"><RotateCcw size={14} /> {k.refunds} devueltos · {money(k.refunded_total)}</span>}
                 {data.lowStock.products.length + data.lowStock.ingredients.length > 0 && <span className="chip bg-butter-soft text-[#9a6b00]"><AlertTriangle size={14} /> {data.lowStock.products.length + data.lowStock.ingredients.length} productos en falta</span>}
               </div>
             )}

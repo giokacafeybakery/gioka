@@ -46,7 +46,7 @@ export default defineConfig({
     }),
   ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  esbuild: { drop: ["console", "debugger"] },
+  esbuild: { drop: ["debugger"] },
   build: {
     target: "es2020",
     cssCodeSplit: true,

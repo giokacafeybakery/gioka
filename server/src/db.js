@@ -110,7 +110,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email));
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  expires_at TEXT
 );
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,
@@ -181,7 +182,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_name TEXT NOT NULL DEFAULT '',
   customer_phone TEXT NOT NULL DEFAULT '',
   table_no TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL CHECK(status IN ('pending','preparing','ready','delivered','cancelled')),
+  status TEXT NOT NULL CHECK(status IN ('pending','preparing','ready','delivered','cancelled','refunded')),
   payment_method TEXT CHECK(payment_method IN ('cash','card','qr')),
   paid INTEGER NOT NULL DEFAULT 0,
   subtotal DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -229,10 +230,23 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEF
 -- Sabores y adicionales: grupos de opciones del producto (JSON) y la selección guardada en cada línea del pedido.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
+-- Devolución / reembolso: registra cómo se devolvió el dinero al cliente.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_method TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_amount DOUBLE PRECISION;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_at TEXT;
+-- Migrate the CHECK constraint to include 'refunded' for databases created before this migration.
+DO $$ BEGIN
+  ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+  ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK(status IN ('pending','preparing','ready','delivered','cancelled','refunded'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS orders_client_id ON orders(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS movements_client_id ON stock_movements(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS cash_sessions_client_id ON cash_sessions(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ingredients_client_id ON ingredients(client_id);
+CREATE INDEX IF NOT EXISTS idx_orders_cash_session ON orders(cash_session_id);
+CREATE INDEX IF NOT EXISTS idx_movements_order ON stock_movements(order_id);
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expires_at TEXT;
 `;
 
 /** Start/end (ISO UTC) of the server-local day that contains `iso` (default: now). */
@@ -304,7 +318,9 @@ export async function initDb() {
       ["Inventario", "inventario@gioka.com", "inventario123", "inventario"],
     ]) await run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", name, email, hashPassword(pass), role, t);
   }
-  if (!(await get("SELECT 1 FROM categories LIMIT 1"))) await seedCatalog();
+  if (!(await get("SELECT 1 FROM categories LIMIT 1"))) await transaction(() => seedCatalog());
+  // Cleanup expired sessions at startup
+  await cleanupExpiredSessions();
 }
 
 async function seedCatalog() {
@@ -375,4 +391,20 @@ async function seedCatalog() {
     );
     for (const [ing, qty] of recipe) await run("INSERT INTO product_ingredients(product_id,ingredient_id,qty) VALUES(?,?,?)", r.lastInsertRowid, await ingId(ing), qty);
   }
+}
+
+/** Remove tokens that have passed their expiry date. */
+export async function cleanupExpiredSessions() {
+  try {
+    const { changes } = await run("DELETE FROM sessions WHERE expires_at IS NOT NULL AND expires_at < ?", now());
+    if (changes > 0) console.log(`Limpieza: ${changes} sesiones expiradas eliminadas.`);
+  } catch (e) {
+    console.warn("Error limpiando sesiones:", e.message);
+  }
+}
+
+// On the local server (not Vercel), clean up expired sessions every hour.
+if (!process.env.VERCEL) {
+  const timer = setInterval(() => cleanupExpiredSessions().catch(() => {}), 60 * 60 * 1000);
+  if (timer.unref) timer.unref();
 }

@@ -99,8 +99,9 @@ export default function inventoryRoutes() {
 
   r.get("/movements", async (req, res) => {
     const limit = Math.min(500, Number(req.query.limit) || 100);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
     const manual = req.query.manual ? "WHERE m.order_id IS NULL" : "";
-    res.json(await all(`${MOVEMENTS_SQL} ${manual} ORDER BY m.id DESC LIMIT ?`, limit));
+    res.json(await all(`${MOVEMENTS_SQL} ${manual} ORDER BY m.id DESC LIMIT ? OFFSET ?`, limit, offset));
   });
 
   r.get("/low", async (_req, res) => res.json(await lowStock()));

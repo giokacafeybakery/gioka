@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Wallet, Lock, Unlock, Banknote, CreditCard, QrCode, Printer, Receipt, AlertCircle, Search } from "lucide-react";
+import { Wallet, Lock, Unlock, Banknote, CreditCard, QrCode, Printer, Receipt, AlertCircle, Search, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Stat, Empty, Loading } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
@@ -25,6 +25,7 @@ export default function Caja() {
   const [q, setQ] = useState("");
   const [payFor, setPayFor] = useState<Order | null>(null);
   const [cashReceived, setCashReceived] = useState("");
+  const [refundFor, setRefundFor] = useState<Order | null>(null);
 
   const load = () => Promise.all([
     useCash.getState().load(),
@@ -47,7 +48,12 @@ export default function Caja() {
 
   const unpaid = orders.filter((o) => !o.paid && o.status !== "cancelled");
   const filtered = orders.filter((o) => { const s = q.trim().toLowerCase(); return !s || String(o.daily_number).includes(s) || o.customer_name.toLowerCase().includes(s) || o.code.toLowerCase().includes(s); });
-  const todayRevenue = orders.filter((o) => o.paid && o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+  const todayRevenue = orders.filter((o) => o.paid && o.status !== "cancelled" && o.status !== "refunded").reduce((s, o) => s + o.total, 0);
+
+  const refund = async (o: Order, method: PaymentMethod) => {
+    try { await api.post(`/api/orders/${o.id}/refund`, { refund_method: method }); setRefundFor(null); toast.success(`Pedido #${o.daily_number} devuelto`); load(); }
+    catch (e) { toast.error((e as Error).message); }
+  };
 
   if (session === undefined) return <Loading />;
 
@@ -99,8 +105,11 @@ export default function Caja() {
                       <td className="px-4 py-2.5"><span className={`pill ${STATUS[o.status].soft} ${STATUS[o.status].text}`}>{STATUS[o.status].label}</span></td>
                       <td className="px-4 py-2.5">{o.paid ? <span className="font-bold text-ink-3">{PAYMENT[o.payment_method!]}</span> : o.status === "cancelled" ? <span className="text-muted">—</span> : <button className="pill bg-berry-soft text-berry hover:bg-berry hover:text-white" onClick={() => setPayFor(o)}>Cobrar</button>}</td>
                       <td className="px-4 py-2.5 font-bold text-muted hidden sm:table-cell">{time(o.created_at)}</td>
-                      <td className={`px-4 py-2.5 text-right font-black ${o.status === "cancelled" ? "line-through text-muted" : ""}`}>{money(o.total)}</td>
-                      <td className="px-2 py-2.5"><button className="btn-icon btn-ghost w-9 h-9" onClick={() => printOrder(o)} title="Reimprimir"><Printer size={16} /></button></td>
+                      <td className={`px-4 py-2.5 text-right font-black ${o.status === "cancelled" || o.status === "refunded" ? "line-through text-muted" : ""}`}>{money(o.total)}</td>
+                      <td className="px-2 py-2.5 flex gap-0.5">
+                        <button className="btn-icon btn-ghost w-9 h-9" onClick={() => printOrder(o)} title="Reimprimir"><Printer size={16} /></button>
+                        {me?.role === "admin" && o.paid && o.status !== "cancelled" && o.status !== "refunded" && <button className="btn-icon btn-ghost w-9 h-9 text-lilac hover:text-[#7b5dbd]" onClick={() => setRefundFor(o)} title="Devolver"><RotateCcw size={16} /></button>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -158,6 +167,14 @@ export default function Caja() {
         <div className="grid grid-cols-3 gap-2 mt-4">
           {([["cash", "Efectivo", <Banknote size={22} />], ["qr", "QR", <QrCode size={22} />], ["card", "Tarjeta", <CreditCard size={22} />]] as [PaymentMethod, string, React.ReactNode][]).map(([m, l, ic]) => (
             <button key={m} onClick={() => payFor && pay(payFor, m)} className="h-20 rounded-2xl border-2 border-line hover:border-peach hover:bg-peach-soft flex flex-col items-center justify-center gap-1 font-extrabold text-sm transition">{ic}{l}</button>
+          ))}
+        </div>
+      </Modal>
+      <Modal open={!!refundFor} onClose={() => setRefundFor(null)} title={refundFor ? `Devolver pedido #${refundFor.daily_number}` : ""} subtitle={refundFor ? `Reembolso ${money(refundFor.total)}` : ""} width="max-w-sm">
+        <p className="text-sm font-semibold text-muted mb-3">Selecciona cómo se devuelve el dinero al cliente. Se restaurará el stock de los productos.</p>
+        <div className="grid grid-cols-3 gap-2">
+          {([["cash", "Efectivo", <Banknote size={22} />], ["qr", "QR", <QrCode size={22} />], ["card", "Tarjeta", <CreditCard size={22} />]] as [PaymentMethod, string, React.ReactNode][]).map(([m, l, ic]) => (
+            <button key={m} onClick={() => refundFor && refund(refundFor, m)} className="h-20 rounded-2xl border-2 border-line hover:border-lilac hover:bg-lilac-soft flex flex-col items-center justify-center gap-1 font-extrabold text-sm transition">{ic}{l}</button>
           ))}
         </div>
       </Modal>

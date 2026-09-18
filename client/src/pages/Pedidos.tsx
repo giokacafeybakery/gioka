@@ -75,7 +75,7 @@ export default function Pedidos() {
   const cols: { status: OrderStatus; hint: string }[] = [
     { status: "pending", hint: "Por preparar" }, { status: "preparing", hint: "En cocina" }, { status: "ready", hint: "Para entregar" },
   ];
-  const history = orders.filter((o) => o.status === "delivered" || o.status === "cancelled");
+  const history = orders.filter((o) => o.status === "delivered" || o.status === "cancelled" || o.status === "refunded");
   // admin: everything · cocina: pending → preparing → ready · cajero: only "Entregar" (and cobrar) once the order is ready
   const isAdmin = user?.role === "admin";
   const canCook = isAdmin || user?.role === "cocina";
@@ -149,7 +149,7 @@ export default function Pedidos() {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6">
-          {history.length === 0 ? <Empty title="Sin historial hoy" hint="Los pedidos entregados y cancelados aparecerán aquí." /> : (
+          {history.length === 0 ? <Empty title="Sin historial hoy" hint="Los pedidos entregados, cancelados y devueltos aparecerán aquí." /> : (
             <div className="card overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-cream text-[11px] uppercase tracking-wider text-muted font-extrabold"><tr><th className="text-left px-4 py-3">Pedido</th><th className="text-left px-4 py-3">Cliente</th><th className="text-left px-4 py-3 hidden md:table-cell">Artículos</th><th className="text-left px-4 py-3">Estado</th><th className="text-left px-4 py-3 hidden sm:table-cell">Hora</th><th className="text-right px-4 py-3">Total</th></tr></thead>
@@ -175,7 +175,7 @@ export default function Pedidos() {
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `Pedido #${detail.daily_number}` : ""} subtitle={detail ? `${TYPE[detail.type].label}${detail.table_no ? ` · Mesa ${detail.table_no}` : ""} · ${time(detail.created_at)} · ${detail.user_name || ""}` : ""}
         footer={detail && (
           <>
-            {isAdmin && detail.status !== "cancelled" && detail.status !== "delivered" && <button className="btn-danger mr-auto" onClick={() => { setCancel(detail); }}><XCircle size={18} /> Cancelar</button>}
+            {isAdmin && detail.status !== "cancelled" && detail.status !== "refunded" && detail.status !== "delivered" && <button className="btn-danger mr-auto" onClick={() => { setCancel(detail); }}><XCircle size={18} /> Cancelar</button>}
             {canManage && <button className="btn-soft" onClick={() => printOrder(detail)}><Printer size={18} /> Ticket</button>}
             <button className="btn-soft" onClick={() => printOrder(detail, { kitchen: true })}><Printer size={18} /> Comanda</button>
             {detail.status === "preparing" && canCook && <button className="btn-soft" onClick={() => setStatus(detail, "pending")}><Undo2 size={18} /> Volver</button>}
@@ -205,6 +205,7 @@ export default function Pedidos() {
               ))}
             </ul>
             <div className="mt-3 pt-3 border-t border-line flex justify-between items-baseline"><span className="font-black">Total</span><span className="text-2xl font-black">{money(detail.total)}</span></div>
+            {detail.refund_reason && <div className="mt-3 text-sm font-bold bg-berry-soft text-berry rounded-xl px-3 py-2">Motivo de devolución: {detail.refund_reason}</div>}
             {detail.notes && <div className="mt-3 text-sm font-bold bg-butter-soft text-[#9a6b00] rounded-xl px-3 py-2">Nota: {detail.notes}</div>}
           </div>
         )}

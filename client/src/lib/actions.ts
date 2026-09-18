@@ -126,7 +126,7 @@ export async function setOrderStatus(order: Order, status: OrderStatus): Promise
   if (order.status === status) return { result: order, queued: false };
   const at = nowISO();
   const local: Order = { ...order, status, updated_at: at, ready_at: status === "ready" ? at : order.ready_at, delivered_at: status === "delivered" ? at : order.delivered_at, pending: true };
-  const labels: Record<OrderStatus, string> = { pending: "Pendiente", preparing: "En preparación", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado" };
+  const labels: Record<OrderStatus, string> = { pending: "Pendiente", preparing: "En preparación", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado", refunded: "Devuelto" };
   return perform<Order>({ id: uuid(), kind: "order.status", at, user: { id: user.id, name: user.name }, label: `Pedido #${order.daily_number} → ${labels[status]}`, target: refOf(order), status }, local,
     (o) => { bus.emit("order:updated", o); if (status === "cancelled") bus.emit("stock:updated", { item_type: "product", item: null }); });
 }

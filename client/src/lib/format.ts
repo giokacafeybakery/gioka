@@ -28,6 +28,7 @@ export const STATUS: Record<OrderStatus, { label: string; color: string; soft: s
   ready:     { label: "Listo",      color: "bg-mint",   soft: "bg-mint-soft",   text: "text-[#1f7a56]" },
   delivered: { label: "Entregado",  color: "bg-ink-3",  soft: "bg-cream-2",     text: "text-ink-3" },
   cancelled: { label: "Cancelado",  color: "bg-berry",  soft: "bg-berry-soft",  text: "text-berry" },
+  refunded:  { label: "Devuelto",   color: "bg-lilac",  soft: "bg-lilac-soft",  text: "text-[#7b5dbd]" },
 };
 export const TYPE: Record<OrderType, { label: string; short: string }> = {
   takeaway: { label: "Para llevar", short: "Llevar" },
