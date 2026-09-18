@@ -1,21 +1,29 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X, Loader2, CheckCircle2, AlertCircle, Info, AlertTriangle, Search } from "lucide-react";
 import { useToast } from "@/store/toast";
 
-export function Modal({ open, onClose, title, subtitle, children, footer, width = "max-w-lg" }: {
+export function Modal({ open, onClose, title, subtitle, children, footer, width = "max-w-lg", flush = false }: {
   open: boolean; onClose: () => void; title?: ReactNode; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode; width?: string;
+  /** No body padding: the content draws its own edge-to-edge sections (e.g. a hero header). */
+  flush?: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Solo el diálogo superior responde a Escape (un modal abierto sobre otro no cierra ambos).
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] === root.current) onClose();
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
+    <div ref={root} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative w-full ${width} bg-paper rounded-t-3xl sm:rounded-3xl shadow-pop anim-pop max-h-[92vh] flex flex-col`}>
+      <div className={`relative w-full ${width} bg-paper rounded-t-3xl sm:rounded-3xl shadow-pop anim-pop max-h-[92vh] flex flex-col ${flush ? "overflow-hidden" : ""}`}>
         {(title || subtitle) && (
           <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
             <div>
@@ -25,7 +33,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
             <button className="btn-icon btn-ghost -mr-2 -mt-1" onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
           </div>
         )}
-        <div className="px-6 pb-5 overflow-y-auto">{children}</div>
+        <div className={flush ? "overflow-y-auto" : "px-6 pb-5 overflow-y-auto"}>{children}</div>
         {footer && <div className="px-6 py-4 border-t border-line flex justify-end gap-2 flex-wrap">{footer}</div>}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Pencil, Trash2, ImagePlus, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, Crop, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Toggle, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -9,6 +9,7 @@ import { useSettings } from "@/store/settings";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { StockLog } from "@/components/StockLog";
+import { ImageCropper } from "@/components/ImageCropper";
 
 type Tab = "products" | "categories" | "stock" | "users" | "settings";
 const EMOJIS = ["☕", "🍵", "🧋", "🥤", "🧃", "🍹", "🍦", "🍨", "🍧", "🍰", "🧁", "🍩", "🍪", "🍫", "🍓", "🍌", "🥐", "🥖", "🥯", "🍞", "🥧", "🥪", "🥑", "🧀", "🍕", "🌮", "🥗", "🍳", "💧", "🫖", "🍽️", "🐼"];
@@ -51,6 +52,7 @@ function Products() {
   const [del, setDel] = useState<Product | null>(null);
   const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [crop, setCrop] = useState<string | null>(null);
 
   const load = () => Promise.all([
     api.get<Product[]>("/api/products?all=1").then(setProducts),
@@ -59,17 +61,9 @@ function Products() {
   ]).catch((e) => toast.error(e.message));
   useEffect(() => { load(); }, []);
 
-  const pick = (f: File | undefined) => {
-    if (!f || !edit) return;
-    const img = new Image(); const url = URL.createObjectURL(f);
-    img.onload = () => {
-      const max = 800; const sc = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas"); c.width = img.width * sc; c.height = img.height * sc;
-      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-      setEdit((e) => e && { ...e, image: c.toDataURL("image/jpeg", 0.85) }); URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  };
+  // La foto elegida pasa por el recortador (encuadre, zoom, giro) y se guarda como JPEG cuadrado.
+  const pick = (f: File | undefined) => { if (f && edit) setCrop(URL.createObjectURL(f)); };
+  const closeCrop = () => { if (crop?.startsWith("blob:")) URL.revokeObjectURL(crop); setCrop(null); };
   const save = async () => {
     if (!edit?.name || edit.price == null) return toast.warning("Nombre y precio son requeridos");
     try {
@@ -121,8 +115,11 @@ function Products() {
                 )}
                 {edit.image && <button className="absolute top-2 right-2 w-8 h-8 rounded-full bg-ink/70 text-white grid place-items-center" onClick={() => setEdit({ ...edit, image: null })}><X size={14} /></button>}
               </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-              <button className="btn-soft btn-sm w-full mt-2" onClick={() => fileRef.current?.click()}><ImagePlus size={15} /> Subir foto</button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+              <div className="flex gap-2 mt-2">
+                <button className="btn-soft btn-sm flex-1" onClick={() => fileRef.current?.click()}><ImagePlus size={15} /> Subir foto</button>
+                {edit.image && <button className="btn-soft btn-sm flex-1" onClick={() => setCrop(edit.image!)}><Crop size={15} /> Ajustar</button>}
+              </div>
               <label className="label mt-3">Emoji</label>
               <div className="flex flex-wrap gap-1">{EMOJIS.map((e) => <button key={e} onClick={() => setEdit({ ...edit, emoji: e })} className={`w-8 h-8 rounded-lg text-lg grid place-items-center ${edit.emoji === e ? "bg-peach-soft ring-2 ring-peach" : "hover:bg-cream"}`}>{e}</button>)}</div>
             </div>
@@ -159,6 +156,7 @@ function Products() {
           </div>
         )}
       </Modal>
+      <ImageCropper open={!!crop} src={crop} onClose={closeCrop} onDone={(dataUrl) => { setEdit((e) => e && { ...e, image: dataUrl }); closeCrop(); }} />
       <Confirm open={!!del} onClose={() => setDel(null)} danger confirmLabel="Ocultar" title={del ? `¿Ocultar ${del.name}?` : ""} message="El producto dejará de mostrarse en el menú. Podrás reactivarlo editándolo." onConfirm={async () => { if (!del) return; await api.delete(`/api/products/${del.id}`); toast.success("Producto oculto"); load(); }} />
     </div>
   );
