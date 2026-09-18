@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs";
@@ -20,8 +21,9 @@ const app = express();
 const server = http.createServer(app);
 export const io = new Server(server, { cors: { origin: true } });
 
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: "12mb" }));
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), { maxAge: "30d", immutable: true }));
 
 // Attach user (if token present) to every request
 app.use(async (req, _res, next) => {
@@ -50,8 +52,19 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, time: now() }));
 // Serve built client (production)
 const dist = path.join(__dirname, "..", "..", "client", "dist");
 if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get(/^(?!\/api|\/uploads).*/, (_req, res) => res.sendFile(path.join(dist, "index.html")));
+  // Hashed assets + brand images are immutable; the HTML shell and the service worker must always revalidate.
+  app.use(express.static(dist, {
+    index: false,
+    setHeaders: (res, file) => {
+      const rel = path.relative(dist, file).replace(/\\/g, "/");
+      if (/^(assets|brand|icons)\//.test(rel)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      else res.setHeader("Cache-Control", "no-cache");
+    },
+  }));
+  app.get(/^(?!\/api|\/uploads).*/, (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(dist, "index.html"));
+  });
 }
 
 app.use((err, _req, res, _next) => {
