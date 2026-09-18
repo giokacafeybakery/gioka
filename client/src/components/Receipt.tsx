@@ -15,7 +15,8 @@ export async function printOrder(order: Order, { kitchen = false, silent = false
   const s = useSettings.getState().settings;
   if (s?.printer_mode === "network") {
     try {
-      await api.post(`/api/print/${order.id}?kitchen=${kitchen ? 1 : 0}`);
+      if (order.id < 0 || order.pending) await api.post("/api/print/direct", { order, kitchen, settings: s });
+      else await api.post(`/api/print/${order.id}?kitchen=${kitchen ? 1 : 0}`);
       if (!silent) toast.success("Ticket enviado a la impresora");
     } catch (e) {
       toast.error("No se pudo imprimir", (e as Error).message);
@@ -47,13 +48,17 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
       <div className="c b">{TYPE[order.type].label.toUpperCase()}{order.table_no ? ` · Mesa ${order.table_no}` : ""}</div>
       {order.customer_name && <div className="c">Cliente: {order.customer_name}</div>}
       {order.type === "delivery" ? (
-        <>
+        <div className="box">
+          <div className="c xl">ENTREGA A DOMICILIO</div>
+          {order.customer_name && <div className="lg">{order.customer_name}</div>}
+          {order.customer_phone && <div className="lg">Tel: {order.customer_phone}</div>}
+          {order.customer_address && <div className="lg">Dir: {order.customer_address}</div>}
+          {order.customer_reference && <div className="b">Ref: {order.customer_reference}</div>}
           <div className="hr" />
-          <div className="b">ENTREGA A DOMICILIO</div>
-          {order.customer_phone && <div>Tel: {order.customer_phone}</div>}
-          {order.customer_address && <div>Dir: {order.customer_address}</div>}
-          {order.customer_reference && <div>Ref: {order.customer_reference}</div>}
-        </>
+          {order.paid
+            ? <div className="c b">PAGADO{order.payment_method ? ` · ${PAYMENT[order.payment_method]}` : ""}</div>
+            : <div className="c lg">COBRAR AL ENTREGAR: {m(order.total, cur)}</div>}
+        </div>
       ) : order.customer_phone ? <div className="c">Tel: {order.customer_phone}</div> : null}
       <div className="row"><span>{order.code}</span><span>{d.toLocaleDateString("es")} {d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span></div>
       <div className="hr" />

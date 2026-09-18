@@ -80,6 +80,7 @@ body {
 @keyframes pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(79,189,145,0.55); } 100% { box-shadow: 0 0 0 16px rgba(79,189,145,0); } }
 @keyframes wiggle { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
 @utility anim-fade-up { animation: fade-up .25s ease-out both; }
 @utility anim-pop { animation: pop-in .2s ease-out both; }
 @utility anim-ring { animation: pulse-ring 1.4s ease-out infinite; }
@@ -87,6 +88,7 @@ body {
 @keyframes pulse-ring-w { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.45); } 100% { box-shadow: 0 0 0 2.4vh rgba(255,255,255,0); } }
 @utility anim-shimmer { animation: shimmer 1.6s ease-in-out infinite; }
 @utility anim-ring-w { animation: pulse-ring-w 1.6s ease-out infinite; }
+@utility anim-shake { animation: shake .45s cubic-bezier(.36,.07,.19,.97) both; }
 @utility anim-wiggle { animation: wiggle 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
 
 /* ---- Receipt print (80mm thermal, browser mode) ---- */
@@ -107,3 +109,4 @@ body {
 .receipt .row { display: flex; justify-content: space-between; gap: 8px; }
 .receipt .hr { border-top: 1px dashed #000; margin: 6px 0; }
 .receipt .hr2 { border-top: 2px solid #000; margin: 6px 0; }
+.receipt .box { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; overflow-wrap: anywhere; }

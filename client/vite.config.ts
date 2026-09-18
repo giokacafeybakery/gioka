@@ -59,6 +59,7 @@ export default defineConfig({
           if (/[\/]node_modules[\/]motion/.test(id) || /[\/]node_modules[\/]framer-motion/.test(id)) return "motion";
           if (/[\/]node_modules[\/](recharts|d3-|victory|internmap|delaunator|robust-predicates)/.test(id)) return "charts";
           if (/[\/]node_modules[\/](socket\.io|engine\.io)/.test(id)) return "socket";
+          if (/[\/]node_modules[\/]lottie-web/.test(id)) return "lottie";
         },
       },
     },

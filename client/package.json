@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lottie-web": "^5.13.0",
     "lucide-react": "^0.475.0",
     "motion": "^12.43.0",
     "qrcode.react": "^4.2.0",
