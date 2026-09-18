@@ -108,7 +108,8 @@ export function StockBar({ stock, min, marker = false, height = 8 }: { stock: nu
   );
 }
 
-export const listVariants = { hidden: {}, show: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } } };
+// Short stagger: a 20-row list settles in ~0.5 s instead of ~1 s (rows below the fold animate anyway)
+export const listVariants = { hidden: {}, show: { transition: { staggerChildren: 0.025, delayChildren: 0.03 } } };
 export const rowVariants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: softSpring } };
 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {

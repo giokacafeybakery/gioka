@@ -46,7 +46,7 @@ export default function MobileShell() {
         <div className="relative flex-1 min-h-0">
           <AnimatePresence initial={false} custom={dir}>
             <motion.div key={to} custom={dir} variants={pageVariants} initial="initial" animate="animate" exit="exit"
-              transition={{ type: "spring", stiffness: 380, damping: 40, mass: 0.9 }} className="absolute inset-0" style={{ zIndex: dir >= 0 ? 2 : 1 }}>
+              transition={{ type: "spring", stiffness: 380, damping: 40, mass: 0.9 }} className="absolute inset-0" style={{ zIndex: dir >= 0 ? 2 : 1, willChange: "transform, opacity", backfaceVisibility: "hidden" }}>
               <Outlet />
             </motion.div>
           </AnimatePresence>
