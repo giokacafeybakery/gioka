@@ -66,7 +66,7 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 3001;
 try {
   await initDb();
-  const bucket = await ensureBucket();
+  const bucket = await ensureBucket().catch((e) => { console.warn("Storage: no se pudo verificar el bucket (" + e.message + "); se reintenta al subir la primera foto."); return !!process.env.SUPABASE_URL; });
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`🐼 Gioka server listo en http://localhost:${PORT} · Postgres (Supabase)${bucket ? " · Storage" : ""}`);
   });

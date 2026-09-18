@@ -57,7 +57,7 @@ export function Card({ children, className = "", onClick, layoutId }: { children
 
 export function Thumb({ item, size = 64, layoutId }: { item: Item; size?: number; layoutId?: string }) {
   return (
-    <motion.div layoutId={layoutId} className="shrink-0 rounded-2xl overflow-hidden grid place-items-center" style={{ width: size, height: size, background: `linear-gradient(145deg, ${item.color}26, ${item.color}5c)` }}>
+    <motion.div layoutId={layoutId} className="shrink-0 overflow-hidden grid place-items-center" style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), background: `linear-gradient(145deg, ${item.color}26, ${item.color}5c)` }}>
       {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <span style={{ fontSize: size * 0.48, lineHeight: 1 }} className="drop-shadow-sm select-none">{item.emoji}</span>}
     </motion.div>
   );
@@ -87,17 +87,23 @@ export function BigButton({ children, onClick, variant = "primary", disabled, ty
   );
 }
 
-export function StatusTag({ status }: { status: "out" | "low" | "ok" }) {
-  const m = { out: ["Agotado", "text-berry"], low: ["Stock bajo", "text-[#d97706]"], ok: ["En stock", "text-mint-2"] }[status];
+export function StatusTag({ status, pill = false }: { status: "out" | "low" | "ok"; pill?: boolean }) {
+  const m = { out: ["Agotado", "text-berry", "bg-berry-soft"], low: ["Stock bajo", "text-[#b45309]", "bg-[#fdf1d4]"], ok: ["En stock", "text-mint-2", "bg-mint-soft"] }[status];
+  if (pill) return <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-bold ${m[1]} ${m[2]}`}><span className="w-1.5 h-1.5 rounded-full bg-current" />{m[0]}</span>;
   return <span className={`text-[12px] font-semibold ${m[1]}`}>{m[0]}</span>;
 }
 
-export function StockBar({ stock, min }: { stock: number; min: number }) {
+export function StockBar({ stock, min, marker = false, height = 8 }: { stock: number; min: number; marker?: boolean; height?: number }) {
   const pct = Math.max(0, Math.min(100, min > 0 ? (stock / (min * 2)) * 100 : stock > 0 ? 100 : 0));
   const c = stock <= 0 ? "bg-berry" : stock <= min ? "bg-[#f59e0b]" : "bg-mint";
   return (
-    <div className="h-2 rounded-full bg-black/5 overflow-hidden">
-      <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: 0.15, ...softSpring }} className={`h-full rounded-full ${c}`} />
+    <div className="relative">
+      <div className="rounded-full bg-black/[0.06] overflow-hidden" style={{ height }}>
+        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: 0.15, ...softSpring }} className={`h-full rounded-full ${c}`} />
+      </div>
+      {marker && min > 0 && (
+        <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-[3px] rounded-full bg-ink/40" style={{ height: height + 6 }} aria-hidden />
+      )}
     </div>
   );
 }
