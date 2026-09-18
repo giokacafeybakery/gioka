@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, Outlet } from "react-router-dom
 import AppShell from "@/components/AppShell";
 import { Toasts } from "@/components/ui";
 import { PrintHost } from "@/components/Receipt";
+import { OfflineBar } from "@/components/SyncStatus";
 import { useAuth } from "@/store/auth";
 import type { Role } from "@/lib/types";
 import Login from "@/pages/Login";
@@ -65,6 +66,7 @@ export default function App() {
         </Routes>
       </Suspense>
       <Toasts />
+      <OfflineBar />
       <PrintHost />
     </BrowserRouter>
   );

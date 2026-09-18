@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { Camera, Check, Clock, UserRound, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { adjustStock } from "@/lib/actions";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { useFlow, useInventory } from "../store";
@@ -29,8 +29,8 @@ export default function Confirm() {
   const confirm = async () => {
     setBusy(true);
     try {
-      await api.post("/api/inventory/adjust", { item_type: item.type, item_id: item.id, qty: flow.mode === "set" ? qty : flow.mode === "out" ? -qty : qty, set: flow.mode === "set", reason: flow.reason, notes: flow.notes, photo: flow.photo });
-      flow.set({ result: { before: item.stock, after, delta, at: new Date().toISOString() } });
+      const { queued } = await adjustStock({ item_type: item.type, item: { id: item.id, client_id: item.client_id, name: item.name, unit: item.unit, stock: item.stock }, qty: flow.mode === "set" ? qty : flow.mode === "out" ? -qty : qty, set: flow.mode === "set", reason: flow.reason, notes: flow.notes, photo: flow.photo });
+      flow.set({ result: { before: item.stock, after, delta, at: new Date().toISOString(), queued } });
       load(); loadMovements();
       nav("/app/ajustar/listo", { replace: true });
     } catch (e) { toast.error("No se pudo guardar", (e as Error).message); setBusy(false); }

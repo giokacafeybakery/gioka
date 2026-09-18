@@ -23,6 +23,7 @@ export const pool = new pg.Pool({
   max: 8,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000, // sin internet: fallar rápido en vez de colgar la petición
+  query_timeout: 12_000,           // conexión ya abierta pero la red se cayó: la consulta no queda colgada para siempre
 });
 pool.on("error", (e) => console.error("Postgres pool:", e.message));
 
@@ -31,7 +32,7 @@ export function isDbOffline(e) {
   if (!e) return false;
   if (e.code && /^(ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE)$/.test(e.code)) return true;
   if (e.code && /^(08|57P0)/.test(String(e.code))) return true; // connection_exception / admin_shutdown
-  return /timeout exceeded when trying to connect|Connection terminated|terminating connection|connection is closed|Client has encountered a connection error/i.test(e.message || "");
+  return /timeout exceeded when trying to connect|Query read timeout|Connection terminated|terminating connection|connection is closed|Client has encountered a connection error/i.test(e.message || "");
 }
 /** Quick liveness check used by /api/health (never waits more than `ms`). */
 export async function dbAlive(ms = 3000) {

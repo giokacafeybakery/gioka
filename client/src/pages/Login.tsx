@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { PandaMark, Wordmark } from "@/components/Logo";
-import { api } from "@/lib/api";
+import { login } from "@/lib/actions";
 import { useAuth } from "@/store/auth";
-import type { User } from "@/lib/types";
+import { useNet } from "@/lib/offline/net";
 import { homeFor } from "@/lib/nav";
 
 export default function Login() {
@@ -14,6 +14,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const setSession = useAuth((s) => s.setSession);
+  const online = useNet((s) => s.online);
+  const known = useNet((s) => s.known);
   const nav = useNavigate();
 
   const submit = async (e: React.FormEvent) => {
@@ -21,7 +23,7 @@ export default function Login() {
     if (busy) return;
     setBusy(true); setError("");
     try {
-      const r = await api.post<{ token: string; user: User }>("/api/auth/login", { email: email.trim(), password });
+      const r = await login(email, password);
       setSession(r.token, r.user);
       nav(homeFor(r.user.role), { replace: true });
     } catch (err) {
@@ -47,6 +49,7 @@ export default function Login() {
           <h1 className="text-2xl font-black tracking-tight text-center">Iniciar sesión</h1>
           <p className="text-center text-muted font-semibold text-sm mt-1">Usa el correo y la contraseña asignados por el administrador</p>
 
+          {known && !online && <div className="mt-6 text-center text-xs font-bold text-[#9a6b00] bg-butter-soft rounded-xl py-2 px-3 anim-pop">Sin conexión: puedes entrar con una cuenta que ya haya iniciado sesión en este dispositivo.</div>}
           {error && <div className="mt-6 text-center text-sm font-bold text-berry bg-berry-soft rounded-xl py-2 anim-pop">{error}</div>}
 
           <div className="mt-6 space-y-3">

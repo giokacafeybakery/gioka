@@ -4,8 +4,11 @@ import { MotionConfig } from "motion/react";
 import { registerSW } from "virtual:pwa-register";
 import "./index.css";
 import App from "./App";
+import { initOffline } from "./lib/offline/boot";
 
 registerSW({ immediate: true });
+// Offline layer: read cache + operation queue + connectivity probe. Rendering does not wait for it (it resolves in ms).
+void initOffline();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Stat, Empty, Loading } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
+import { closeCash, payOrder } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, STATUS, TYPE, time, dateTime, PAYMENT } from "@/lib/format";
 import type { CashSession, Order, PaymentMethod } from "@/lib/types";
@@ -30,15 +31,16 @@ export default function Caja() {
     api.get<Order[]>("/api/orders").then(setOrders),
   ]).catch((e) => toast.error(e.message));
   useEffect(() => { load(); }, []);
-  useSocket({ "order:created": () => load(), "order:updated": () => load() });
+  useSocket({ "order:created": () => load(), "order:updated": () => load(), "cash:updated": () => load(), "sync:changed": () => load() });
 
   const canClose = !!session && (me?.role === "admin" || session.user_id === me?.id);
   const close = async () => {
-    try { await api.post("/api/cash/close", { closing_amount: Number(amount || 0), notes }); useCash.getState().set(null); setCloseModal(false); setAmount(""); setNotes(""); toast.success("Caja cerrada"); load(); }
+    if (!session) return;
+    try { const { queued } = await closeCash(session, { closing_amount: Number(amount || 0), notes }); useCash.getState().set(null); setCloseModal(false); setAmount(""); setNotes(""); toast.success("Caja cerrada", queued ? "Se enviará al volver la conexión" : undefined); load(); }
     catch (e) { toast.error((e as Error).message); }
   };
   const pay = async (o: Order, method: PaymentMethod) => {
-    try { await api.post(`/api/orders/${o.id}/pay`, { payment_method: method, cash_received: method === "cash" && cashReceived ? Number(cashReceived) : null }); setPayFor(null); setCashReceived(""); toast.success(`Pedido #${o.daily_number} cobrado`); }
+    try { await payOrder(o, method, method === "cash" && cashReceived ? Number(cashReceived) : null); setPayFor(null); setCashReceived(""); toast.success(`Pedido #${o.daily_number} cobrado`); }
     catch (e) { toast.error((e as Error).message); }
   };
 

@@ -5,6 +5,8 @@ import { PandaMark, Wordmark } from "./Logo";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
+import { logout as endSession } from "@/lib/actions";
+import { SyncButton } from "./SyncStatus";
 import { useSocket } from "@/lib/socket";
 import type { LowStock, Role } from "@/lib/types";
 import { toast } from "@/store/toast";
@@ -12,7 +14,7 @@ import { toast } from "@/store/toast";
 interface NavItem { to: string; label: string; short: string; icon: ReactNode; roles: Role[]; badge?: number }
 
 export default function AppShell() {
-  const { user, logout } = useAuth();
+  const user = useAuth((s) => s.user);
   const nav = useNavigate();
   const load = useSettings((s) => s.load);
   const [low, setLow] = useState(0);
@@ -29,6 +31,7 @@ export default function AppShell() {
       toast.warning("Stock bajo", items.map((i) => i.name).slice(0, 3).join(", ") + (items.length > 3 ? "…" : ""));
     },
     "stock:updated": () => { if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
+    "sync:changed": () => { if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
   }, [user?.role]);
 
   const items: NavItem[] = ([
@@ -41,8 +44,7 @@ export default function AppShell() {
   ] as NavItem[]).filter((i) => user && i.roles.includes(user.role));
 
   const doLogout = async () => {
-    try { await api.post("/api/auth/logout"); } catch { /* ignore */ }
-    logout();
+    await endSession();
     nav("/login");
   };
 
@@ -74,6 +76,7 @@ export default function AppShell() {
           <MonitorPlay size={22} />
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>
         </a>
+        <SyncButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />
         <button onClick={doLogout} className="flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Salir">
           <LogOut size={22} />
         </button>
@@ -84,6 +87,7 @@ export default function AppShell() {
         <Wordmark height={26} color="#FFFDF8" />
         <div className="flex items-center gap-1">
           {!!low && <NavLink to="/inventario" className="relative w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10"><Bell size={20} /><span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-berry text-[10px] font-black grid place-items-center">{low}</span></NavLink>}
+          <SyncButton light className="w-10 h-10 rounded-xl hover:bg-white/10" />
           <button onClick={doLogout} className="w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10" aria-label="Salir"><LogOut size={20} /></button>
         </div>
       </header>

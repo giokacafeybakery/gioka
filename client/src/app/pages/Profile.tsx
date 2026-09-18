@@ -1,21 +1,25 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { LogOut, Monitor, ChevronRight, Share, Smartphone, Boxes, History } from "lucide-react";
+import { LogOut, Monitor, ChevronRight, Share, Smartphone, Boxes, History, CloudOff, CloudUpload, Wifi, RefreshCw } from "lucide-react";
 import { PandaMark } from "@/components/Logo";
 import { useAuth } from "@/store/auth";
-import { api } from "@/lib/api";
+import { logout as endSession } from "@/lib/actions";
+import { useSyncSummary, SyncPanel } from "@/components/SyncStatus";
 import { ROLE } from "@/lib/format";
 import { useInventory } from "../store";
 import { Screen, Card, listVariants, rowVariants } from "../ui";
+import { useState } from "react";
 
 export default function Profile() {
   const nav = useNavigate();
-  const { user, logout } = useAuth();
+  const user = useAuth((s) => s.user);
+  const sync = useSyncSummary();
+  const [syncOpen, setSyncOpen] = useState(false);
   const { items, movements } = useInventory();
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
   const mine = movements.filter((m) => m.user_name === user?.name && m.order_id == null).length;
 
-  const doLogout = async () => { try { await api.post("/api/auth/logout"); } catch { /* ignore */ } logout(); nav("/login", { replace: true }); };
+  const doLogout = async () => { await endSession(); nav("/login", { replace: true }); };
 
   return (
     <Screen title="Perfil">
@@ -24,6 +28,18 @@ export default function Profile() {
           <Card className="p-4 flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-cream grid place-items-center"><PandaMark size={44} /></div>
             <div className="min-w-0"><div className="text-[18px] font-bold truncate">{user?.name}</div><div className="text-[13px] text-app-muted truncate">{user?.email}</div><span className="inline-block mt-1 text-[12px] font-semibold px-2 py-0.5 rounded-full bg-mint-soft text-mint-2">{user && ROLE[user.role]}</span></div>
+          </Card>
+        </motion.div>
+        <motion.div variants={rowVariants}>
+          <Card onClick={() => setSyncOpen(true)} className="p-4 flex items-center gap-3">
+            <div className={`w-11 h-11 rounded-xl grid place-items-center shrink-0 ${!sync.online ? "bg-butter-soft text-[#9a5b00]" : sync.failed ? "bg-berry-soft text-berry" : sync.pending ? "bg-sky-soft text-[#0f6f95]" : "bg-mint-soft text-mint-2"}`}>
+              {sync.syncing ? <RefreshCw size={20} className="animate-spin" /> : !sync.online ? <CloudOff size={20} /> : sync.pending + sync.failed ? <CloudUpload size={20} /> : <Wifi size={20} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[15px] font-semibold">{!sync.online ? "Sin conexión" : sync.syncing ? "Enviando cambios…" : sync.failed ? "Cambios con error" : sync.pending ? "Cambios por enviar" : "Conectado y sincronizado"}</div>
+              <div className="text-[13px] text-app-muted truncate">{!sync.online ? "Los ajustes se guardan en el teléfono y se envían solos" : sync.pending + sync.failed ? `${sync.pending + sync.failed} ${sync.pending + sync.failed === 1 ? "operación pendiente" : "operaciones pendientes"}` : "Todo lo que registraste está en el servidor"}</div>
+            </div>
+            <ChevronRight size={18} className="text-black/25" />
           </Card>
         </motion.div>
         <motion.div variants={rowVariants} className="grid grid-cols-2 gap-3">
@@ -46,6 +62,7 @@ export default function Profile() {
         </motion.div>
         <motion.div variants={rowVariants} className="text-center text-[12px] text-app-muted pt-2">Gioka · Café · Heladería · Bakery</motion.div>
       </motion.div>
+      <SyncPanel open={syncOpen} onClose={() => setSyncOpen(false)} />
     </Screen>
   );
 }

@@ -3,6 +3,7 @@ import { Boxes, Plus, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Search, P
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Stat, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
+import { adjustStock, createIngredient } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, num } from "@/lib/format";
 import { StockLog } from "@/components/StockLog";
@@ -36,7 +37,7 @@ export default function Inventario() {
     api.get<Product[]>("/api/products?all=1").then((p) => setProducts(p.filter((x) => x.track_stock || x.recipe.length))),
   ]).catch((e) => toast.error(e.message));
   useEffect(() => { load(); }, []);
-  useSocket({ "stock:updated": () => load(), "order:created": () => load(), "order:updated": () => load() });
+  useSocket({ "stock:updated": () => load(), "order:created": () => load(), "order:updated": () => load(), "sync:changed": () => load() });
 
   const s = q.trim().toLowerCase();
   const lowIngs = (ings || []).filter((i) => i.stock <= i.min_stock);
@@ -64,16 +65,18 @@ export default function Inventario() {
     const n = Number(adjQty);
     setAdjBusy(true);
     try {
-      await api.post("/api/inventory/adjust", { item_type: adjust.type, item_id: adjust.id, qty: adjMode === "out" ? -n : n, set: adjMode === "set", reason: adjReason, notes: adjNotes, photo: adjPhoto });
-      toast.success("Stock actualizado", adjPhoto ? "Comprobante guardado" : undefined); setAdjust(null); load();
+      const item = adjust.type === "ingredient" ? ings?.find((i) => i.id === adjust.id) : undefined;
+      const { queued } = await adjustStock({ item_type: adjust.type, item: { id: adjust.id, client_id: item?.client_id, name: adjust.name, unit: adjust.unit, stock: adjust.stock }, qty: adjMode === "out" ? -n : n, set: adjMode === "set", reason: adjReason, notes: adjNotes, photo: adjPhoto });
+      toast.success("Stock actualizado", queued ? "Guardado en este dispositivo; se enviará al volver la conexión" : adjPhoto ? "Comprobante guardado" : undefined); setAdjust(null); load();
     } catch (e) { toast.error((e as Error).message); }
     finally { setAdjBusy(false); }
   };
   const saveIng = async () => {
     if (!edit?.name) return toast.warning("Nombre requerido");
     try {
-      if (edit.id) await api.put(`/api/inventory/ingredients/${edit.id}`, edit); else await api.post("/api/inventory/ingredients", edit);
-      toast.success("Insumo guardado"); setEdit(null); load();
+      if (edit.id) { await api.put(`/api/inventory/ingredients/${edit.id > 0 ? edit.id : `c_${edit.client_id}`}`, edit); toast.success("Insumo guardado"); }
+      else { const { queued } = await createIngredient(edit as Parameters<typeof createIngredient>[0]); toast.success("Insumo guardado", queued ? "Se enviará al volver la conexión" : undefined); }
+      setEdit(null); load();
     } catch (e) { toast.error((e as Error).message); }
   };
   const LowBadge = ({ stock, min }: { stock: number; min: number }) => stock <= 0 ? <span className="pill bg-berry text-white">Agotado</span> : stock <= min ? <span className="pill bg-butter-soft text-[#9a6b00]"><AlertTriangle size={11} /> Bajo</span> : <span className="pill bg-mint-soft text-mint-2">OK</span>;

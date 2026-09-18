@@ -33,6 +33,7 @@ export default function Done() {
 
         <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="mt-7 text-[30px] font-bold tracking-tight">¡Listo!</motion.h1>
         <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.58 }} className="text-[16px] text-app-muted mt-1">{label} · {new Date(result.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</motion.p>
+        {result.queued && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1 rounded-full bg-butter-soft text-[#9a5b00]">Guardado en el teléfono · se enviará al volver la conexión</motion.p>}
 
         <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.7, type: "spring", stiffness: 300, damping: 26 }} className="w-full mt-7">
           <Card className="p-4 flex items-center gap-3 text-left">

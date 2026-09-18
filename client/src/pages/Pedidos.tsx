@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, CreditCard, QrCode, MapPin } from "lucide-react";
+import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, CreditCard, QrCode, MapPin, CloudOff } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Empty, Segmented, Confirm } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
+import { payOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, STATUS, TYPE, elapsed, time, PAYMENT } from "@/lib/format";
 import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/lib/types";
@@ -44,21 +45,29 @@ export default function Pedidos() {
   const [, tick] = useState(0);
   const soundRef = useRef(sound);
   soundRef.current = sound;
+  const ordersRef = useRef<Order[]>([]);
+  ordersRef.current = orders;
 
   const load = () => api.get<Order[]>("/api/orders").then(setOrders).catch(() => {});
   useEffect(() => { load(); const t = setInterval(() => tick((x) => x + 1), 30000); return () => clearInterval(t); }, []);
   useSocket({
-    "order:created": (o: Order) => { setOrders((s) => [o, ...s.filter((x) => x.id !== o.id)]); if (soundRef.current) beep(); },
-    "order:updated": (o: Order) => setOrders((s) => s.map((x) => (x.id === o.id ? o : x))),
+    // Orders created offline arrive first as a local copy (negative id) and later from the server with the same client_id: replace, don't duplicate.
+    "order:created": (o: Order) => {
+      const seen = ordersRef.current.some((x) => x.id === o.id || (!!o.client_id && x.client_id === o.client_id));
+      setOrders((s) => [o, ...s.filter((x) => x.id !== o.id && !(o.client_id && x.client_id === o.client_id))]);
+      if (soundRef.current && !seen) beep();
+    },
+    "order:updated": (o: Order) => setOrders((s) => s.map((x) => (x.id === o.id || (!!o.client_id && x.client_id === o.client_id) ? o : x))),
+    "sync:changed": () => load(),
   });
   useEffect(() => localStorage.setItem("gioka-sound", sound ? "1" : "0"), [sound]);
 
   const setStatus = async (o: Order, status: OrderStatus) => {
-    try { await api.patch(`/api/orders/${o.id}/status`, { status }); if (detail?.id === o.id) setDetail(null); }
+    try { await setOrderStatus(o, status); if (detail?.id === o.id) setDetail(null); }
     catch (e) { toast.error((e as Error).message); }
   };
   const pay = async (o: Order, method: PaymentMethod) => {
-    try { await api.post(`/api/orders/${o.id}/pay`, { payment_method: method }); setPayFor(null); toast.success(`Pedido #${o.daily_number} cobrado`); }
+    try { await payOrder(o, method); setPayFor(null); toast.success(`Pedido #${o.daily_number} cobrado`); }
     catch (e) { toast.error((e as Error).message); }
   };
 
@@ -98,6 +107,7 @@ export default function Pedidos() {
         {o.notes && <div className="mt-2 text-xs font-extrabold text-berry bg-berry-soft rounded-lg px-2 py-1">Nota: {o.notes}</div>}
         <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
+          {o.pending && <span className="pill bg-butter-soft text-[#9a6b00]" title="Guardado en este dispositivo; se enviará al servidor al volver la conexión"><CloudOff size={11} /> Por enviar</span>}
           <div className="flex-1" />
           {o.status === "pending" && canCook && <button className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
           {o.status === "preparing" && canCook && <button className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> Listo</button>}

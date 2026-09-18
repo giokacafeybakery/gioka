@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles, CloudOff } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, ProductThumb, Empty, Loading } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
+import { createOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, greeting, STATUS, TYPE, elapsed } from "@/lib/format";
 import type { Category, Order, OrderStatus, OrderType, PaymentMethod, Product } from "@/lib/types";
@@ -45,6 +46,7 @@ export default function Pos() {
     "order:created": () => loadActive(),
     "order:updated": () => loadActive(),
     "stock:updated": () => loadProducts(),
+    "sync:changed": () => { loadActive(); loadProducts(); },
     "stock:low": () => loadProducts(),
   });
 
@@ -64,14 +66,15 @@ export default function Pos() {
     if (payNow && payment === "cash" && cashReceived && Number(cashReceived) < totals.total) return toast.warning("El monto recibido es menor al total");
     setBusy(true);
     try {
-      const order = await api.post<Order>("/api/orders", {
-        type: cart.type, customer_name: cart.customerName.trim(), customer_phone: cart.customerPhone.trim(), table_no: cart.tableNo.trim(),
-        customer_address: cart.address.trim(), customer_reference: cart.reference.trim(), notes: cart.notes, discount: cart.discount,
+      const { result: order, queued } = await createOrder({
+        lines: cart.lines, type: cart.type, customer_name: cart.customerName.trim(), customer_phone: cart.customerPhone.trim(), table_no: cart.tableNo.trim(),
+        extra: { customer_address: cart.address.trim(), customer_reference: cart.reference.trim() }, notes: cart.notes, discount: cart.discount,
         payment_method: payNow ? payment : null, cash_received: payNow && payment === "cash" && cashReceived ? Number(cashReceived) : null,
-        items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, notes: l.notes })),
+        products: products || [],
       });
       cart.clear(); setCashReceived(""); setMobileCart(false);
       setDone(order);
+      if (queued) toast.info("Guardado en este dispositivo", "Sin conexión: el pedido se enviará automáticamente al servidor.");
       if (settings?.auto_print && settings.printer_mode === "browser") printOrder(order, { silent: true });
       loadProducts();
     } catch (e) { toast.error("No se pudo crear el pedido", (e as Error).message); }
@@ -80,7 +83,7 @@ export default function Pos() {
 
   const advance = async (o: Order) => {
     const n = NEXT[o.status]; if (!n) return;
-    try { await api.patch(`/api/orders/${o.id}/status`, { status: n.to }); } catch (e) { toast.error((e as Error).message); }
+    try { await setOrderStatus(o, n.to); } catch (e) { toast.error((e as Error).message); }
   };
 
   const OrderPanel = (
@@ -210,6 +213,7 @@ export default function Pos() {
                       <div className="mt-3 flex items-center gap-1.5 min-w-0">
                         <span className={`pill ${st.soft} ${st.text}`}><span className={`w-1.5 h-1.5 rounded-full ${st.color}`} />{st.label}</span>
                         {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
+                        {o.pending && <span className="pill bg-butter-soft text-[#9a6b00]" title="Se enviará al volver la conexión"><CloudOff size={11} /></span>}
                         <div className="flex-1" />
                         {n && <button onClick={() => advance(o)} className="btn btn-sm btn-dark shrink-0">{n.label}</button>}
                       </div>
@@ -313,6 +317,7 @@ export default function Pos() {
               <div className="mt-3 inline-block px-4 py-2 rounded-xl bg-butter-soft text-[#9a6b00] font-black">Cambio: {money(done.cash_received - done.total)}</div>
             )}
             <div className="text-xs font-bold text-muted mt-3">Código de seguimiento: <span className="text-ink font-black tracking-wider">{done.code}</span></div>
+            {done.pending && <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-butter-soft text-[#9a6b00] text-xs font-extrabold"><CloudOff size={13} /> Guardado en este dispositivo · se enviará al volver la conexión</div>}
             <div className="grid grid-cols-2 gap-2 mt-6">
               <button className="btn-soft" onClick={() => printOrder(done)}><Printer size={18} /> Ticket</button>
               <button className="btn-soft" onClick={() => printOrder(done, { kitchen: true })}><ChefHat size={18} /> Comanda</button>

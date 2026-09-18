@@ -5,7 +5,8 @@ import type { User } from "@/lib/types";
 interface AuthState {
   token: string | null;
   user: User | null;
-  setSession: (token: string, user: User) => void;
+  /** token may be null after an offline login of an account whose server session had been closed; the queue waits for an online login. */
+  setSession: (token: string | null, user: User) => void;
   logout: () => void;
 }
 
