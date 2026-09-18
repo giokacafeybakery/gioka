@@ -42,7 +42,7 @@ export default function Pantalla() {
   return (
     <div className="min-h-full bg-cream flex flex-col select-none">
       <header className="flex items-center justify-between px-8 py-5 bg-ink text-white">
-        <div className="flex items-center gap-4"><PandaMark size={52} /><Wordmark height={40} color="#FFFDF8" face="#232323" /></div>
+        <Wordmark height={56} color="#FFFDF8" />
         <div className="text-right"><div className="text-3xl font-black tabular-nums">{clock.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</div><div className="text-xs font-bold text-white/60 uppercase tracking-widest">{clock.toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })}</div></div>
       </header>
       <main className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_1.3fr] gap-6 p-6 md:p-8">
@@ -55,7 +55,7 @@ export default function Pantalla() {
         <section className="flex flex-col">
           <div className="flex items-center gap-3 mb-4"><span className="w-3 h-3 rounded-full bg-mint anim-ring" /><h2 className="text-2xl font-black">¡Listo para retirar!</h2><span className="ml-auto text-lg font-black text-muted">{ready.length}</span></div>
           {ready.length === 0 ? (
-            <div className="flex-1 grid place-items-center rounded-3xl bg-paper shadow-soft"><div className="text-center"><PandaMark size={140} className="mx-auto anim-wiggle" /><div className="mt-4 text-xl font-black text-ink-3">Tu pedido aparecerá aquí</div><div className="text-muted font-bold">Café · Heladería · Bakery</div></div></div>
+            <div className="flex-1 grid place-items-center rounded-3xl bg-paper shadow-soft"><div className="text-center"><PandaMark size={160} className="mx-auto anim-wiggle" /><div className="mt-6 text-xl font-black text-ink-3">Tu pedido aparecerá aquí</div><div className="text-muted font-bold">Café · Heladería · Bakery</div></div></div>
           ) : (
             <div className="grid grid-cols-2 gap-4 content-start">{ready.map((o) => <Tile key={o.code} o={o} big />)}</div>
           )}

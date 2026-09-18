@@ -113,7 +113,7 @@ gioka/
 ├── client/                 Vite + React + TypeScript + Tailwind v4 + PWA
 │   ├── src/pages/          Login, Pos, Pedidos, Caja, Inventario, Admin, Reportes, Pantalla, Seguir
 │   ├── src/components/     AppShell (sidebar), Logo (panda SVG), Receipt, ui
-│   └── scripts/make-icons.py  gera os ícones PNG do PWA
+│   └── scripts/make-brand.py  gera os assets da marca e os ícones do PWA a partir de logo/
 └── start-gioka.cmd         atalho para Windows
 ```
 

@@ -35,16 +35,15 @@ export default function Login() {
         <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-peach/20 blur-3xl" />
         <div className="absolute -bottom-40 -right-20 w-[560px] h-[560px] rounded-full bg-pink/20 blur-3xl" />
         <div className="relative text-center px-10 anim-fade-up">
-          <div className="inline-grid place-items-center w-44 h-44 rounded-[2.5rem] bg-white/10 mb-8 anim-wiggle"><PandaMark size={140} /></div>
-          <Wordmark height={64} color="#FFFDF8" face="#232323" className="justify-center" />
-          <div className="mt-3 text-white/60 font-bold tracking-[0.28em] uppercase text-sm">Café · Heladería · Bakery</div>
+          <div className="inline-grid place-items-center w-52 h-52 rounded-[2.5rem] bg-white/10 mb-10 anim-wiggle"><PandaMark size={150} ink="#FFFDF8" /></div>
+          <Wordmark height={120} color="#FFFDF8" className="mx-auto" />
           <p className="mt-10 text-white/50 font-semibold max-w-sm mx-auto">Punto de venta, pedidos en tiempo real, inventario y reportes. Todo en un solo lugar.</p>
         </div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm anim-fade-up">
-          <div className="lg:hidden flex flex-col items-center mb-8"><PandaMark size={84} /><Wordmark height={40} className="mt-2" /></div>
+          <div className="lg:hidden flex flex-col items-center mb-8"><Wordmark height={72} /></div>
           <h1 className="text-2xl font-black tracking-tight text-center">Iniciar sesión</h1>
           <p className="text-center text-muted font-semibold text-sm mt-1">Usa el correo y la contraseña asignados por el administrador</p>
 

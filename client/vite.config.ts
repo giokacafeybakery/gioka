@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/panda.svg"],
+      includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png"],
       manifest: {
         name: "Gioka — Café · Heladería · Bakery",
         short_name: "Gioka",
@@ -24,7 +24,7 @@ export default defineConfig({
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         shortcuts: [
           { name: "Ajustar stock", url: "/app/ajustar", description: "Registrar entrada o salida" },

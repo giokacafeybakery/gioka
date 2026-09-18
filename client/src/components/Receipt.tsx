@@ -33,6 +33,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
   const track = settings.public_url ? `${settings.public_url.replace(/\/$/, "")}/seguir/${order.code}` : "";
   return (
     <div className="receipt">
+      {!kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
       <div className="c xl">{settings.business_name}</div>
       {!kitchen && (
         <>

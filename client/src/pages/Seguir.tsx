@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check, ChefHat, Clock, PartyPopper, Search, XCircle } from "lucide-react";
-import { PandaMark, Wordmark } from "@/components/Logo";
+import { Wordmark } from "@/components/Logo";
 import { useSocket } from "@/lib/socket";
 import { money, time, TYPE } from "@/lib/format";
 import type { PublicOrder, OrderStatus } from "@/lib/types";
@@ -31,7 +31,7 @@ export default function Seguir() {
 
   return (
     <div className="min-h-full bg-cream flex flex-col items-center px-4 py-8">
-      <div className="flex flex-col items-center mb-6"><PandaMark size={72} className={order?.status === "ready" ? "anim-wiggle" : ""} /><Wordmark height={30} className="mt-1" /></div>
+      <div className="flex flex-col items-center mb-6"><Wordmark height={64} className={order?.status === "ready" ? "anim-wiggle" : ""} /></div>
 
       {!code || error ? (
         <div className="card p-6 w-full max-w-sm text-center anim-fade-up">

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { ShoppingBag, ChefHat, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell, Smartphone } from "lucide-react";
-import { PandaMark } from "./Logo";
+import { PandaMark, Wordmark } from "./Logo";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
@@ -81,7 +81,7 @@ export default function AppShell() {
 
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between px-4 h-14 bg-ink text-white">
-        <div className="flex items-center gap-2"><PandaMark size={28} /><span className="font-black text-lg tracking-tight">Gioka</span></div>
+        <Wordmark height={26} color="#FFFDF8" />
         <div className="flex items-center gap-1">
           {!!low && <NavLink to="/inventario" className="relative w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10"><Bell size={20} /><span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-berry text-[10px] font-black grid place-items-center">{low}</span></NavLink>}
           <button onClick={doLogout} className="w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10" aria-label="Salir"><LogOut size={20} /></button>
