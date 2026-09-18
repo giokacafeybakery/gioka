@@ -56,7 +56,9 @@ export default function MobileShell() {
           {showTabs && (
             <motion.nav key="tabs" initial={{ y: 96, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 96, opacity: 0 }} transition={{ type: "spring", stiffness: 380, damping: 36 }}
               className="absolute left-0 right-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pointer-events-none flex justify-center">
-              <motion.div layout className="pointer-events-auto flex items-center gap-1 p-1.5 rounded-full bg-gradient-to-b from-[#2e2e2e] to-[#1c1c1c] ring-1 ring-inset ring-white/[0.08] shadow-[0_24px_48px_-16px_rgba(0,0,0,0.6),0_2px_6px_rgba(0,0,0,0.25)]">
+              {/* soft fade so list content dissolves behind the floating hub */}
+              <div className="absolute inset-x-0 bottom-0 h-[130px] bg-gradient-to-t from-app via-app/80 to-transparent" aria-hidden />
+              <motion.div layout className="relative pointer-events-auto flex items-center gap-1 p-1.5 rounded-full bg-gradient-to-b from-[#2e2e2e] to-[#1c1c1c] ring-1 ring-inset ring-white/[0.08] shadow-[0_24px_48px_-16px_rgba(0,0,0,0.6),0_2px_6px_rgba(0,0,0,0.25)]">
                 {TABS.map((t) => {
                   const active = to === t.to;
                   const Icon = t.icon;
