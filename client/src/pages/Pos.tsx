@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles, CloudOff } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles, CloudOff, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, ProductThumb, Empty, Loading } from "@/components/ui";
@@ -31,7 +31,7 @@ export default function Pos() {
   const [q, setQ] = useState("");
   const [payment, setPayment] = useState<PaymentMethod | null>("cash");
   const [cashReceived, setCashReceived] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "pay" | "kitchen">(false);
   const [done, setDone] = useState<Order | null>(null);
   const [noteFor, setNoteFor] = useState<number | null>(null);
   const [showDiscount, setShowDiscount] = useState(false);
@@ -64,7 +64,7 @@ export default function Pos() {
     const missing = customerError(cart.type, cart);
     if (missing) { setMobileCart(true); return toast.warning(missing); }
     if (payNow && payment === "cash" && cashReceived && Number(cashReceived) < totals.total) return toast.warning("El monto recibido es menor al total");
-    setBusy(true);
+    setBusy(payNow ? "pay" : "kitchen");
     try {
       const { result: order, queued } = await createOrder({
         lines: cart.lines, type: cart.type, customer_name: cart.customerName.trim(), customer_phone: cart.customerPhone.trim(), table_no: cart.tableNo.trim(),
@@ -174,8 +174,12 @@ export default function Pos() {
           <div className="flex justify-between items-baseline pt-1"><span className="text-ink font-black">Total</span><span className="text-2xl font-black text-ink">{money(totals.total)}</span></div>
         </div>
         <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
-          <button className="btn-primary btn-lg" disabled={busy || !cart.lines.length || !cash} onClick={() => submit(true)}>Cobrar {money(totals.total)}<ChevronRight size={18} /></button>
-          <button className="btn-soft btn-lg px-4" disabled={busy || !cart.lines.length || !cash} onClick={() => submit(false)} title="Enviar a cocina y cobrar después"><ChefHat size={20} /></button>
+          <button className="btn-primary btn-lg" disabled={!!busy || !cart.lines.length || !cash} aria-busy={busy === "pay"} onClick={() => submit(true)}>
+            {busy === "pay" ? <><Loader2 size={20} className="animate-spin" /> Cobrando…</> : <>Cobrar {money(totals.total)}<ChevronRight size={18} /></>}
+          </button>
+          <button className="btn-soft btn-lg px-4" disabled={!!busy || !cart.lines.length || !cash} aria-busy={busy === "kitchen"} onClick={() => submit(false)} title="Enviar a cocina y cobrar después">
+            {busy === "kitchen" ? <Loader2 size={20} className="animate-spin" /> : <ChefHat size={20} />}
+          </button>
         </div>
       </div>
     </div>
