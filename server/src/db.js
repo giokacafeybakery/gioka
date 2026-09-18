@@ -222,6 +222,8 @@ const DEFAULT_SETTINGS = {
   auto_print: true,
   order_prefix: "G",
   public_url: "",
+  telegram_bot_token: "", // bot de @BotFather; con chat id, cada foto del app se reenvía a ese chat/canal
+  telegram_chat_id: "",
 };
 
 /** Create tables (idempotent) and seed demo data on an empty database. Called once at startup. */

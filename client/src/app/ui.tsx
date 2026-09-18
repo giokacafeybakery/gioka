@@ -58,7 +58,7 @@ export function Card({ children, className = "", onClick, layoutId }: { children
 export function Thumb({ item, size = 64, layoutId }: { item: Item; size?: number; layoutId?: string }) {
   return (
     <motion.div layoutId={layoutId} className="shrink-0 overflow-hidden grid place-items-center" style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), background: `linear-gradient(145deg, ${item.color}26, ${item.color}5c)` }}>
-      {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <span style={{ fontSize: size * 0.48, lineHeight: 1 }} className="drop-shadow-sm select-none">{item.emoji}</span>}
+      {item.image ? <img src={item.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <span style={{ fontSize: size * 0.48, lineHeight: 1 }} className="drop-shadow-sm select-none">{item.emoji}</span>}
     </motion.div>
   );
 }
@@ -131,11 +131,11 @@ export function Sheet({ open, onClose, children, title, subtitle, right }: { ope
     <AnimatePresence>
       {open && (
         <motion.div key="sheet" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-[2px] flex items-end justify-center font-app" onClick={onClose}>
+          className="fixed inset-0 z-[80] bg-black/55 flex items-end justify-center font-app" onClick={onClose}>
           <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", stiffness: 420, damping: 40 }}
             drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }} onDragEnd={(_, i) => { if (i.offset.y > 110 || i.velocity.y > 600) onClose(); }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[520px] bg-white rounded-t-[28px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+18px)] max-h-[88dvh] flex flex-col shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.3)]">
+            style={{ willChange: "transform" }} className="w-full max-w-[520px] bg-white rounded-t-[28px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+18px)] max-h-[88dvh] flex flex-col shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.3)]">
             <div className="mx-auto w-10 h-1.5 rounded-full bg-black/12 mb-3 shrink-0" />
             {(title || right) && (
               <div className="flex items-start justify-between gap-3 mb-3 shrink-0">

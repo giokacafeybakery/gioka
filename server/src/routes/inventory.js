@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { get, all, run, now, transaction } from "../db.js";
 import { saveImage } from "../storage.js";
+import { caption } from "../telegram.js";
 import { requireRole } from "./auth.js";
 
 const id = (v) => Number(v) || 0;
@@ -11,7 +12,8 @@ export async function lowStock() {
   return { products, ingredients };
 }
 
-const savePhoto = (dataUrl) => saveImage(dataUrl, `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, "png|jpe?g|webp");
+const savePhoto = (dataUrl, text) => saveImage(dataUrl, `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, { types: "png|jpe?g|webp", caption: text });
+const fmtQty = (n, unit) => `${n > 0 ? "+" : ""}${Number(n).toLocaleString("es")} ${unit}`.trim();
 
 const MOVEMENTS_SQL = `
   SELECT m.*, u.name AS user_name, u.role AS user_role,
@@ -32,7 +34,9 @@ export default function inventoryRoutes(io) {
     const { name, unit = "u", stock = 0, min_stock = 0, cost = 0, supplier = "", photo } = req.body;
     if (!name) return res.status(400).json({ error: "Nombre requerido" });
     if (req.user.role === "inventario" && Number(stock) !== 0 && !photo) return res.status(400).json({ error: "Adjunta la foto del comprobante del stock inicial" });
-    const photoPath = Number(stock) !== 0 ? await savePhoto(photo) : null;
+    const photoPath = Number(stock) !== 0
+      ? await savePhoto(photo, caption(["🧾 Stock inicial", { b: name }, fmtQty(Number(stock), unit), supplier && `🏪 ${supplier}`, `👤 ${req.user.name}`]))
+      : null;
     const x = await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at) VALUES(?,?,?,?,?,?,?)", name, unit, Number(stock), Number(min_stock), Number(cost), supplier, now());
     if (Number(stock) !== 0)
       await run("INSERT INTO stock_movements(item_type,item_id,qty,reason,notes,photo,user_id,created_at) VALUES('ingredient',?,?,?,?,?,?,?)", x.lastInsertRowid, Number(stock), "stock inicial", "", photoPath, req.user.id, now());
@@ -61,7 +65,12 @@ export default function inventoryRoutes(io) {
     const delta = set ? Number(qty) - row.stock : Number(qty);
     if (!Number.isFinite(delta) || delta === 0) return res.status(400).json({ error: "Cantidad inválida" });
     if (req.user.role === "inventario" && !photo) return res.status(400).json({ error: "Adjunta la foto del comprobante" });
-    const photoPath = await savePhoto(photo);
+    const unit = item_type === "product" ? "u" : row.unit;
+    const photoPath = await savePhoto(photo, caption([
+      delta > 0 ? "📥 Entrada de stock" : "📤 Salida de stock", { b: row.name },
+      `${fmtQty(delta, unit)} → queda ${fmtQty(row.stock + delta, unit).replace(/^\+/, "")}`,
+      `🏷️ ${reason || (delta > 0 ? "entrada" : "salida")}`, notes && `📝 ${String(notes).slice(0, 300)}`, `👤 ${req.user.name}`,
+    ]));
     if (photo && !photoPath) return res.status(400).json({ error: "La foto debe ser JPG, PNG o WebP" });
     await transaction(async () => {
       await run(`UPDATE ${table} SET stock = stock + ? ${item_type === "product" ? ", track_stock=1" : ""} WHERE id=?`, delta, row.id);

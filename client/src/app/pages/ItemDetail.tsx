@@ -38,8 +38,7 @@ export default function ItemDetail() {
     <div className="absolute inset-0 flex flex-col bg-app font-app">
       {/* Hero */}
       <div className="relative shrink-0 overflow-hidden" style={{ background: `linear-gradient(165deg, ${item.color}2e 0%, ${item.color}66 55%, ${item.color}99 100%)` }}>
-        <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-white/50 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -right-10 w-64 h-64 rounded-full blur-3xl" style={{ background: `${item.color}aa` }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(260px 260px at 12% 0%, rgba(255,255,255,0.55), rgba(255,255,255,0) 70%), radial-gradient(240px 240px at 95% 100%, ${item.color}aa, ${item.color}00 70%)` }} />
         {!item.image && (
           <div className="pointer-events-none absolute -right-7 top-[calc(env(safe-area-inset-top,0px)+96px)] select-none opacity-[0.16] rotate-[14deg]" style={{ fontSize: 150, lineHeight: 1 }} aria-hidden>{item.emoji}</div>
         )}

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getSettings, setSetting } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
+import { testConnection } from "../telegram.js";
 
 const PUBLIC_KEYS = ["business_name", "business_tagline", "business_address", "business_phone", "currency", "tax_rate", "receipt_footer", "order_prefix", "public_url"];
 const r = Router();
@@ -18,6 +19,19 @@ r.put("/", requireAuth, requireRole("admin"), async (req, res) => {
     if (/^[a-z_]+$/.test(k)) await setSetting(k, v);
   }
   res.json(await getSettings());
+});
+
+// Verify the Telegram bot + chat (body overrides saved values) and post a confirmation message there.
+r.post("/telegram/test", requireAuth, requireRole("admin"), async (req, res) => {
+  const s = await getSettings();
+  const token = String(req.body?.telegram_bot_token ?? s.telegram_bot_token ?? "").trim();
+  const chat = String(req.body?.telegram_chat_id ?? s.telegram_chat_id ?? "").trim();
+  if (!token || !chat) return res.status(400).json({ error: "Indica el token del bot y el ID del chat" });
+  try {
+    res.json(await testConnection(token, chat));
+  } catch (e) {
+    res.status(400).json({ error: `Telegram: ${e.message}` });
+  }
 });
 
 export default r;

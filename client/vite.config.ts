@@ -34,14 +34,35 @@ export default defineConfig({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
-          { urlPattern: /^\/api\/(reports|inventory|products|categories|settings)/, handler: "NetworkFirst", options: { cacheName: "gioka-api", expiration: { maxEntries: 50, maxAgeSeconds: 86400 } } },
-          { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "CacheFirst", options: { cacheName: "gioka-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 31536000 } } },
+          // Data: try the network for 3 s, then fall back to the last copy so the app opens instantly on slow connections.
+          { urlPattern: ({ url, request }) => request.method === "GET" && /^\/api\/(reports|inventory|products|categories|settings)/.test(url.pathname), handler: "NetworkFirst", options: { cacheName: "gioka-api", networkTimeoutSeconds: 3, expiration: { maxEntries: 60, maxAgeSeconds: 86400 } } },
+          // Photos (Supabase Storage / local uploads) and brand images: cache first, they never change under the same name.
+          { urlPattern: ({ url }) => /\/storage\/v1\/object\/public\//.test(url.pathname) || url.pathname.startsWith("/uploads/"), handler: "CacheFirst", options: { cacheName: "gioka-images", cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 300, maxAgeSeconds: 2592000, purgeOnQuotaError: true } } },
+          { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "CacheFirst", options: { cacheName: "gioka-fonts", cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 20, maxAgeSeconds: 31536000 } } },
         ],
       },
     }),
   ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  esbuild: { drop: ["console", "debugger"] },
+  build: {
+    target: "es2020",
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: React/router/zustand/motion change rarely, so returning users hit the cache.
+        manualChunks: (id) => {
+          if (!id.includes("node_modules")) return;
+          if (/[\/]node_modules[\/](react|react-dom|react-router|react-router-dom|scheduler|zustand)[\/]/.test(id)) return "vendor";
+          if (/[\/]node_modules[\/]motion/.test(id) || /[\/]node_modules[\/]framer-motion/.test(id)) return "motion";
+          if (/[\/]node_modules[\/](recharts|d3-|victory|internmap|delaunator|robust-predicates)/.test(id)) return "charts";
+          if (/[\/]node_modules[\/](socket\.io|engine\.io)/.test(id)) return "socket";
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

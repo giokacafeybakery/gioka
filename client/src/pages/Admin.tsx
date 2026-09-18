@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Pencil, Trash2, ImagePlus, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Toggle, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -261,11 +261,22 @@ function SettingsTab() {
   const { settings, load, save } = useSettings();
   const [form, setForm] = useState<Partial<Settings> | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tg, setTg] = useState<{ busy: boolean; ok?: { bot: string; chat: string }; showToken: boolean }>({ busy: false, showToken: false });
   useEffect(() => { load().then(() => setForm(useSettings.getState().settings)); }, [load]);
   if (!form || !settings) return <Loading />;
   const f = <K extends keyof Settings>(k: K) => ({ value: (form[k] ?? "") as string | number, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.type === "number" ? Number(e.target.value) : e.target.value }) });
   const doSave = async () => { setBusy(true); try { await save(form); toast.success("Ajustes guardados"); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); } };
   const test = async () => { try { await save(form); await api.post("/api/print/test"); toast.success("Página de prueba enviada"); } catch (e) { toast.error("Impresora", (e as Error).message); } };
+  const tgConfigured = !!(form.telegram_bot_token?.trim() && form.telegram_chat_id?.trim());
+  const testTelegram = async () => {
+    setTg((t) => ({ ...t, busy: true, ok: undefined }));
+    try {
+      await save(form);
+      const ok = await api.post<{ bot: string; chat: string }>("/api/settings/telegram/test", { telegram_bot_token: form.telegram_bot_token, telegram_chat_id: form.telegram_chat_id });
+      setTg((t) => ({ ...t, busy: false, ok }));
+      toast.success("Telegram conectado", `Mensaje de prueba enviado a ${ok.chat}`);
+    } catch (e) { setTg((t) => ({ ...t, busy: false })); toast.error("Telegram", (e as Error).message); }
+  };
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-5xl">
       <section className="card p-5">
@@ -300,6 +311,35 @@ function SettingsTab() {
           <div className="flex items-end pb-2"><Toggle checked={!!form.auto_print} onChange={(v) => setForm({ ...form, auto_print: v })} label="Imprimir al crear pedido" /></div>
           {form.printer_mode === "network" && <div className="col-span-2"><button className="btn-soft btn-sm" onClick={test}><Printer size={15} /> Imprimir página de prueba</button></div>}
         </div>
+      </section>
+      <section className="card p-5 xl:col-span-2">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-black text-lg flex items-center gap-2"><Send size={20} className="text-peach" /> Telegram · copia de las fotos</h3>
+            <p className="text-sm font-semibold text-muted mt-1">Cada foto que se sube al app (comprobantes de entradas y salidas de stock, fotos de productos) se reenvía a un canal o grupo de Telegram con el detalle del movimiento y quién lo hizo.</p>
+          </div>
+          <span className={`pill shrink-0 ${tg.ok ? "bg-mint-soft text-mint" : tgConfigured ? "bg-peach-soft text-peach" : "bg-line/60 text-muted"}`}>
+            {tg.ok ? <><CheckCircle2 size={14} /> @{tg.ok.bot} → {tg.ok.chat}</> : tgConfigured ? "Configurado" : "Sin configurar"}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+          <Field label="Token del bot" hint="Lo entrega @BotFather al crear el bot (/newbot)">
+            <div className="relative">
+              <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input className="input pl-9 pr-10 font-mono text-sm" type={tg.showToken ? "text" : "password"} autoComplete="off" spellCheck={false} placeholder="123456789:AAH…" {...f("telegram_bot_token")} />
+              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted hover:bg-line/60" title={tg.showToken ? "Ocultar" : "Mostrar"} onClick={() => setTg((t) => ({ ...t, showToken: !t.showToken }))}>{tg.showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+            </div>
+          </Field>
+          <Field label="ID del canal o grupo" hint="Ej: -1001234567890 o @micanal — el bot debe ser administrador del canal">
+            <div className="relative"><Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9 font-mono text-sm" spellCheck={false} placeholder="-100…" {...f("telegram_chat_id")} /></div>
+          </Field>
+          <button className="btn-soft" disabled={!tgConfigured || tg.busy} onClick={testTelegram}><Send size={16} /> {tg.busy ? "Enviando…" : "Enviar prueba"}</button>
+        </div>
+        <ol className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs font-semibold text-muted">
+          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">1.</span> En Telegram abre <span className="text-ink">@BotFather</span>, envía <span className="font-mono text-ink">/newbot</span> y copia el token.</li>
+          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">2.</span> Crea un canal privado y agrega el bot como <span className="text-ink">administrador</span> (puede publicar mensajes).</li>
+          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">3.</span> Pega el ID del canal (reenvía un mensaje del canal a <span className="text-ink">@userinfobot</span> para verlo) y pulsa <span className="text-ink">Enviar prueba</span>.</li>
+        </ol>
       </section>
       <div className="xl:col-span-2 flex justify-end"><button className="btn-primary btn-lg" disabled={busy} onClick={doSave}><Save size={20} /> Guardar ajustes</button></div>
     </div>

@@ -33,12 +33,17 @@ def tint(mask, rgb, max_side):
     return out
 
 
+def save_small(img, path):
+    """Single-colour artwork → 8-bit palette PNG (5x smaller, visually identical)."""
+    img.quantize(colors=256, method=Image.FASTOCTREE, dither=0).save(path, format="PNG", optimize=True)
+
+
 mark = load_mask(SRC_MARK)
 word = load_mask(SRC_WORD)
-tint(mark, INK, 1024).save(os.path.join(BRAND, "mark.png"), optimize=True)
-tint(mark, WHITE, 1024).save(os.path.join(BRAND, "mark-white.png"), optimize=True)
-tint(word, INK, 1600).save(os.path.join(BRAND, "wordmark.png"), optimize=True)
-tint(word, WHITE, 1600).save(os.path.join(BRAND, "wordmark-white.png"), optimize=True)
+save_small(tint(mark, INK, 1024), os.path.join(BRAND, "mark.png"))
+save_small(tint(mark, WHITE, 1024), os.path.join(BRAND, "mark-white.png"))
+save_small(tint(word, INK, 1600), os.path.join(BRAND, "wordmark.png"))
+save_small(tint(word, WHITE, 1600), os.path.join(BRAND, "wordmark-white.png"))
 
 
 def icon(size, bg, scale, radius_ratio=0.0):
@@ -58,9 +63,9 @@ def icon(size, bg, scale, radius_ratio=0.0):
     return img.resize((size, size), Image.LANCZOS)
 
 
-icon(192, CREAM, 0.72).save(os.path.join(ICONS, "icon-192.png"), optimize=True)
-icon(512, CREAM, 0.72).save(os.path.join(ICONS, "icon-512.png"), optimize=True)
-icon(512, CREAM, 0.58).save(os.path.join(ICONS, "icon-maskable-512.png"), optimize=True)  # safe zone for maskable
-icon(180, CREAM, 0.72).save(os.path.join(ICONS, "apple-touch-icon.png"), optimize=True)
+save_small(icon(192, CREAM, 0.72), os.path.join(ICONS, "icon-192.png"))
+save_small(icon(512, CREAM, 0.72), os.path.join(ICONS, "icon-512.png"))
+save_small(icon(512, CREAM, 0.58), os.path.join(ICONS, "icon-maskable-512.png"))  # safe zone for maskable
+save_small(icon(180, CREAM, 0.72), os.path.join(ICONS, "apple-touch-icon.png"))
 icon(64, CREAM, 0.78, radius_ratio=0.22).save(os.path.join(ICONS, "favicon.png"), optimize=True)
 print("brand assets ok")

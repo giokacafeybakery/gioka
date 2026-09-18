@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import type { Ingredient, Product } from "@/lib/types";
 
@@ -35,11 +36,18 @@ interface InvState {
   byKey: (key: string) => Item | undefined;
 }
 
-export const useInventory = create<InvState>()((set, get) => ({
+// The last snapshot is kept in localStorage so the app paints instantly on open and then revalidates.
+// Concurrent loads (several socket events in a row) are coalesced into one request.
+let inflight: Promise<void> | null = null;
+let inflightMov: Promise<void> | null = null;
+
+export const useInventory = create<InvState>()(persist((set, get) => ({
   items: null,
   movements: [],
   loading: false,
-  load: async () => {
+  load: () => {
+    if (inflight) return inflight;
+    inflight = (async () => {
     set({ loading: true });
     try {
       const [ings, prods] = await Promise.all([api.get<Ingredient[]>("/api/inventory/ingredients"), api.get<Product[]>("/api/products?all=1")]);
@@ -49,12 +57,18 @@ export const useInventory = create<InvState>()((set, get) => ({
       ].sort((a, b) => a.name.localeCompare(b.name, "es"));
       set({ items, loading: false });
     } catch { set({ loading: false }); }
+    })().finally(() => { inflight = null; });
+    return inflight;
   },
-  loadMovements: async () => {
-    try { set({ movements: await api.get<Movement[]>("/api/inventory/movements?limit=300") }); } catch { /* keep */ }
+  loadMovements: () => {
+    if (inflightMov) return inflightMov;
+    inflightMov = (async () => {
+      try { set({ movements: await api.get<Movement[]>("/api/inventory/movements?limit=200") }); } catch { /* keep */ }
+    })().finally(() => { inflightMov = null; });
+    return inflightMov;
   },
   byKey: (key) => get().items?.find((i) => i.key === key),
-}));
+}), { name: "gioka-inventory", version: 1, partialize: (s) => ({ items: s.items, movements: s.movements }) }));
 
 /** Draft of the adjustment being made (survives across the adjust → confirm → done screens). */
 export type Mode = "in" | "out" | "set";

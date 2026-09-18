@@ -32,6 +32,7 @@ export interface Settings {
   business_name: string; business_tagline: string; business_address: string; business_phone: string; currency: string; tax_rate: number;
   receipt_footer: string; printer_mode: "browser" | "network"; printer_host: string; printer_port: number; printer_width: number;
   auto_print: boolean; order_prefix: string; public_url: string;
+  telegram_bot_token: string; telegram_chat_id: string;
 }
 
 export interface CashSession {

@@ -3,6 +3,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { sendPhoto } from "./telegram.js";
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
 const BUCKET = process.env.SUPABASE_BUCKET || "gioka";
@@ -34,12 +35,20 @@ export async function ensureBucket() {
 
 /**
  * Persist a base64 data URL. `name` is the file name without extension (e.g. "p12-1699999").
+ * Options: `types` (allowed extensions regex, default png/jpg/webp/gif) and `caption` (HTML text for the Telegram copy).
+ * Every stored image is also mirrored to Telegram when the admin configured a bot (fire-and-forget).
  * Returns a URL (absolute for Supabase, "/uploads/…" for local) or null when the data URL is invalid.
  */
-export async function saveImage(dataUrl, name, types = "png|jpe?g|webp|gif") {
+export async function saveImage(dataUrl, name, { types = "png|jpe?g|webp|gif", caption = "" } = {}) {
   const img = parse(dataUrl, types);
   if (!img) return null;
   const file = `${name}.${img.ext}`;
+  const url = await store(img, file);
+  void sendPhoto({ buf: img.buf, mime: img.mime, name: file, caption });
+  return url;
+}
+
+async function store(img, file) {
   const s = supa();
   if (s) {
     const r = await fetch(`${s.url}/storage/v1/object/${BUCKET}/${file}`, {

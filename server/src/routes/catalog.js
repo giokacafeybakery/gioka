@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { get, all, run, now } from "../db.js";
 import { saveImage } from "../storage.js";
+import { caption } from "../telegram.js";
 import { requireAuth, requireRole } from "./auth.js";
 
 const r = Router();
@@ -61,7 +62,7 @@ r.post("/products", ...admin, async (req, res) => {
     b.active === false ? 0 : 1, b.track_stock ? 1 : 0, Number(b.stock || 0), Number(b.min_stock || 5), sort, now(),
   );
   const pid = x.lastInsertRowid;
-  const img = await saveImage(b.image, `p${pid}-${Date.now()}`);
+  const img = await saveImage(b.image, `p${pid}-${Date.now()}`, { caption: caption(["🍽️ Nuevo producto", { b: b.name }, `👤 ${req.user.name}`]) });
   if (img) await run("UPDATE products SET image=? WHERE id=?", img, pid);
   await upsertRecipe(pid, b.recipe);
   res.json(parseProduct(await get(`${productQuery} WHERE p.id=?`, pid)));
@@ -73,7 +74,7 @@ r.put("/products/:id", ...admin, async (req, res) => {
   const b = req.body;
   let image = p.image;
   if (b.image === null) image = null;
-  else if (b.image && b.image.startsWith("data:")) image = (await saveImage(b.image, `p${p.id}-${Date.now()}`)) || image;
+  else if (b.image && b.image.startsWith("data:")) image = (await saveImage(b.image, `p${p.id}-${Date.now()}`, { caption: caption(["🍽️ Foto de producto", { b: b.name ?? p.name }, `👤 ${req.user.name}`]) })) || image;
   await run(
     "UPDATE products SET category_id=?,name=?,description=?,price=?,cost=?,emoji=?,image=?,active=?,track_stock=?,stock=?,min_stock=?,sort=? WHERE id=?",
     b.category_id === undefined ? p.category_id : (b.category_id || null),
