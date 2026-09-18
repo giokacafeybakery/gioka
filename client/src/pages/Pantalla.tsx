@@ -8,7 +8,7 @@ import type { PublicOrder } from "@/lib/types";
  * Pantalla pública para TV (16:9, vista desde lejos).
  * - Tema oscuro para no deslumbrar; toda la escala en vh/vw para que se vea igual en cualquier TV.
  * - El último pedido listo se muestra gigante; los demás listos debajo; los que se preparan a la izquierda.
- * - Cuando un pedido pasa a "listo": timbre + takeover de pantalla completa durante unos segundos.
+ * - Cuando un pedido pasa a "listo": sonido (sounds/pedido-listo.mp3) + takeover de pantalla completa durante unos segundos.
  */
 
 const MAX_PREPARING = 12;
@@ -16,7 +16,11 @@ const MAX_READY = 7; // 1 destacado + 6
 const TAKEOVER_MS = 5000;
 const spring = { type: "spring", stiffness: 240, damping: 30, mass: 0.9 } as const;
 
-function chime() {
+// Timbre de "pedido listo": el mp3 en public/sounds (precargado una vez); si el navegador se niega a reproducirlo, cae al acorde sintetizado.
+const readySound = typeof Audio !== "undefined" ? new Audio("/sounds/pedido-listo.mp3") : null;
+if (readySound) { readySound.preload = "auto"; readySound.volume = 1; }
+
+function fallbackChime() {
   try {
     const ctx = new AudioContext(); const t = ctx.currentTime;
     [[659, 0], [784, 0.16], [1047, 0.32], [1047, 0.7]].forEach(([f, d]) => {
@@ -26,6 +30,12 @@ function chime() {
       o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.5);
     });
   } catch { /* sin audio */ }
+}
+
+function chime() {
+  if (!readySound) return fallbackChime();
+  readySound.currentTime = 0;
+  readySound.play().catch(fallbackChime);
 }
 
 const vh = (n: number) => Math.round((typeof window !== "undefined" ? window.innerHeight : 1080) * n / 100);
