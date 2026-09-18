@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { PandaMark, Wordmark } from "@/components/Logo";
+import { PandaListo, preloadPandaListo } from "@/components/PandaListo";
 import { useSocket } from "@/lib/socket";
 import type { PublicOrder } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export default function Pantalla() {
     setOrders(list);
   }).catch(() => {});
 
+  useEffect(() => { preloadPandaListo().catch(() => {}); }, []); // frames del panda listos antes del primer takeover
   useEffect(() => { load(); const t = setInterval(load, 15000); const c = setInterval(() => setClock(new Date()), 1000); return () => { clearInterval(t); clearInterval(c); }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   useSocket({ "order:created": () => load(), "order:updated": () => load() });
   useEffect(() => { if (!queue.length) return; const t = setTimeout(() => setQueue((q) => q.slice(1)), TAKEOVER_MS); return () => clearTimeout(t); }, [queue]);
@@ -155,19 +157,43 @@ export default function Pantalla() {
         <span className="flex items-center gap-[2vw]"><span><b className="text-white/80">{preparingAll.length}</b> preparando</span><span><b className="text-mint">{readyAll.length}</b> listos</span></span>
       </footer>
 
-      {/* Takeover: pedido recién listo */}
+      {/* Takeover: pedido recién listo — panda saludando, número gigante y logo en negro para contrastar con el verde */}
       <AnimatePresence>
         {announcing && (
           <motion.div key={announcing.code} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}
-            className="absolute inset-0 z-50 bg-gradient-to-br from-[#5ccb9e] via-mint to-[#2f9a70] text-white grid place-items-center overflow-hidden">
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 6 }} transition={{ duration: 1.2, ease: "easeOut" }} className="absolute w-[30vh] h-[30vh] rounded-full bg-white/10" />
-            <motion.div initial={{ scale: 0.8, y: 30, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} transition={{ ...spring, delay: 0.1 }} className="relative text-center px-[4vw]">
-              <div className="text-[3vh] font-extrabold uppercase tracking-[0.35em] text-white/85">¡Tu pedido está listo!</div>
-              <div className="mt-[2vh] text-[34vh] font-black leading-[0.85] tracking-tighter tabular-nums drop-shadow-[0_10px_0_rgba(0,0,0,0.12)]">#{announcing.daily_number}</div>
-              {announcing.customer_name && <div className="mt-[3vh] text-[6vh] font-extrabold truncate">{displayName(announcing)}</div>}
-              <div className="mt-[4vh] inline-flex items-center gap-[1vw] rounded-full bg-white/15 ring-1 ring-white/30 px-[2vw] py-[1.4vh] text-[2.4vh] font-extrabold">Acércate al mostrador <PandaMark size={vh(3.6)} ink="#FFFDF8" /></div>
+            className="absolute inset-0 z-50 text-white overflow-hidden"
+            style={{ background: "radial-gradient(90vh 90vh at 18% 40%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 60%), radial-gradient(110vh 110vh at 90% 100%, #2b8f68 0%, rgba(43,143,104,0) 65%), linear-gradient(135deg, #5ccb9e 0%, #44b98a 55%, #33a076 100%)" }}>
+            {/* logo en negro arriba */}
+            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ ...spring, delay: 0.05 }} className="absolute top-[4vh] inset-x-0 flex justify-center">
+              <Wordmark height={vh(8.5)} color="#232323" />
             </motion.div>
-            <motion.div initial={{ scaleX: 1 }} animate={{ scaleX: 0 }} transition={{ duration: TAKEOVER_MS / 1000, ease: "linear" }} className="absolute bottom-0 inset-x-0 h-[0.8vh] bg-white/40 origin-left" />
+
+            <div className="absolute inset-0 flex items-center justify-center gap-[5vw] px-[6vw] pt-[6vh]">
+              {/* panda animado dentro de un círculo blanco */}
+              <motion.div initial={{ scale: 0.5, opacity: 0, rotate: -8 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ ...spring, delay: 0.15 }} className="relative shrink-0">
+                {/* ondas que salen del panda */}
+                {[0, 1, 2].map((i) => (
+                  <motion.div key={i} initial={{ scale: 1, opacity: 0.5 }} animate={{ scale: 3.4, opacity: 0 }} transition={{ duration: 2.8, delay: 0.3 + i * 0.75, repeat: Infinity, ease: "easeOut" }}
+                    className="absolute left-1/2 top-1/2 w-[46vh] h-[46vh] -ml-[23vh] -mt-[23vh] rounded-full border-[0.5vh] border-white/45" style={{ willChange: "transform, opacity" }} />
+                ))}
+                <div className="absolute -inset-[2.4vh] rounded-full bg-white/15" />
+                <motion.div animate={{ y: [0, -1.6 * vh(1), 0] }} transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                  className="relative w-[46vh] h-[46vh] rounded-full bg-white overflow-hidden ring-[1vh] ring-white/40 shadow-[0_3vh_7vh_rgba(0,0,0,0.28)]" style={{ willChange: "transform" }}>
+                  <PandaListo size={vh(46)} />
+                </motion.div>
+              </motion.div>
+
+              <motion.div initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ ...spring, delay: 0.25 }} className="relative text-center min-w-0">
+                <div className="text-[3.2vh] font-black uppercase tracking-[0.32em] text-ink/90">¡Tu pedido está listo!</div>
+                <div className="mt-[1vh] text-[32vh] font-black leading-[0.85] tracking-tighter tabular-nums drop-shadow-[0_1.2vh_0_rgba(35,35,35,0.22)]">#{announcing.daily_number}</div>
+                {announcing.customer_name && <div className="mt-[2.5vh] text-[6.5vh] font-extrabold truncate">{displayName(announcing)}</div>}
+                <div className="mt-[3.5vh] inline-flex items-center gap-[1vw] rounded-full bg-ink text-white px-[2.4vw] py-[1.5vh] text-[2.6vh] font-extrabold shadow-[0_1.5vh_3vh_rgba(0,0,0,0.25)]">
+                  Acércate al mostrador <PandaMark size={vh(3.8)} ink="#FFFDF8" />
+                </div>
+              </motion.div>
+            </div>
+
+            <motion.div initial={{ scaleX: 1 }} animate={{ scaleX: 0 }} transition={{ duration: TAKEOVER_MS / 1000, ease: "linear" }} className="absolute bottom-0 inset-x-0 h-[0.9vh] bg-ink/60 origin-left" />
           </motion.div>
         )}
       </AnimatePresence>

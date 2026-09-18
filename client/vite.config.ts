@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png", "sounds/*.mp3"],
+      includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png", "sounds/*.mp3", "anim/**/*.{webp,json}"],
       manifest: {
         name: "Gioka — Café · Heladería · Bakery",
         short_name: "Gioka",
@@ -36,8 +36,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
-          // Data: try the network for 3 s, then fall back to the last copy so the app opens instantly on slow connections.
-          { urlPattern: ({ url, request }) => request.method === "GET" && /^\/api\/(reports|inventory|products|categories|settings)/.test(url.pathname), handler: "NetworkFirst", options: { cacheName: "gioka-api", networkTimeoutSeconds: 3, expiration: { maxEntries: 60, maxAgeSeconds: 86400 } } },
+          // API data is NOT cached here: src/lib/offline (IndexedDB cache + operation queue) owns offline reads/writes,
+          // and a service-worker copy would hide real network errors from that layer.
           // Photos (Supabase Storage / local uploads) and brand images: cache first, they never change under the same name.
           { urlPattern: ({ url }) => /\/storage\/v1\/object\/public\//.test(url.pathname) || url.pathname.startsWith("/uploads/"), handler: "CacheFirst", options: { cacheName: "gioka-images", cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 300, maxAgeSeconds: 2592000, purgeOnQuotaError: true } } },
           { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "CacheFirst", options: { cacheName: "gioka-fonts", cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 20, maxAgeSeconds: 31536000 } } },
