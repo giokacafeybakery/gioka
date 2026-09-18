@@ -9,7 +9,9 @@ import { loadEnv } from "./env.js";
 loadEnv();
 
 if (!process.env.DATABASE_URL) {
-  console.error("Falta DATABASE_URL en server/.env (cadena de conexión de Supabase).");
+  const msg = "Falta DATABASE_URL (cadena de conexión de Supabase) en server/.env o en las variables de entorno.";
+  if (process.env.VERCEL) throw new Error(msg);
+  console.error(msg);
   process.exit(1);
 }
 
@@ -20,7 +22,8 @@ pg.types.setTypeParser(1700, Number);
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
-  max: 8,
+  // Serverless (Vercel): muchas instancias pequeñas → pocas conexiones cada una (usar el pooler en modo transacción, puerto 6543).
+  max: Number(process.env.PG_POOL_MAX) || (process.env.VERCEL ? 2 : 8),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000, // sin internet: fallar rápido en vez de colgar la petición
   query_timeout: 12_000,           // conexión ya abierta pero la red se cayó: la consulta no queda colgada para siempre
@@ -284,6 +287,11 @@ const DEFAULT_SETTINGS = {
 /** Create tables (idempotent) and seed demo data on an empty database. Called once at startup. */
 export async function initDb() {
   await pool.query(SCHEMA);
+  // Row Level Security sin políticas: la clave pública (anon) que llevan los navegadores para Realtime no puede leer
+  // ni escribir nada por la API REST de Supabase; el servidor entra como `postgres` (bypass RLS).
+  for (const t of ["users", "sessions", "categories", "products", "ingredients", "product_ingredients", "orders", "order_items", "stock_movements", "cash_sessions", "settings"]) {
+    await pool.query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
+  }
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     if (!(await get("SELECT 1 FROM settings WHERE key=?", k))) await setSetting(k, v);
   }

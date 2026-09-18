@@ -16,7 +16,7 @@ Interface em espanhol, identidade visual do panda Gioka.
 
 ```bash
 npm install          # instala server + client
-cp server/.env.example server/.env   # e preencha DATABASE_URL (+ SUPABASE_URL / SUPABASE_SERVICE_KEY para fotos)
+cp server/.env.example server/.env   # e preencha DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY (fotos) e SUPABASE_ANON_KEY (tempo real)
 npm run build        # compila o front-end
 npm start            # abre em http://localhost:3001
 ```
@@ -69,7 +69,7 @@ Perfil dedicado a repor e baixar estoque. Cada movimento registra **foto do comp
 | `/pantalla`     | **Pantalla de clientes** (público) — para uma TV/monitor: "Preparando" e "¡Listo para retirar!" com sinal sonoro |
 | `/seguir/:code` | **Seguimiento** (público) — o cliente escaneia o QR do ticket e acompanha seu pedido em tempo real |
 
-Tudo é atualizado em tempo real via WebSocket (Socket.IO).
+Tudo é atualizado em tempo real: o servidor publica cada evento no **Supabase Realtime** e os navegadores assinam o canal com a chave pública do projeto (funciona tanto no PC da loja quanto na Vercel).
 
 ---
 
@@ -103,13 +103,17 @@ Instalação: abra o endereço do servidor no celular (mesma rede Wi‑Fi) e toq
 
 ```
 gioka/
-├── server/                 Node + Express + Socket.IO + Postgres (pg → Supabase)
+├── api/index.js            função serverless da Vercel (exporta a app Express)
+├── vercel.json             build, rewrites e cache para a Vercel
+├── server/                 Node + Express + Postgres (pg → Supabase) + Supabase Realtime
+│   ├── src/app.js          app Express (rotas, health, realtime config); src/index.js = servidor local
 │   ├── src/db.js           esquema, seed inicial, helpers get/all/run/transaction
+│   ├── src/realtime.js     publica eventos ao vivo (Broadcast REST do Supabase Realtime)
 │   ├── src/storage.js      fotos em Supabase Storage (ou server/uploads sem Supabase)
 │   ├── scripts/supabase-admin.mjs  utilitário da Management API (listar projetos, rodar SQL)
 │   ├── src/escpos.js       gerador ESC/POS + envio TCP
 │   └── src/routes/         auth, catalog, orders, inventory, reports, settings, print, cash
-│   └── .env                DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY (não versionado)
+│   └── .env                DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_ANON_KEY (não versionado)
 ├── client/                 Vite + React + TypeScript + Tailwind v4 + PWA
 │   ├── src/pages/          Login, Pos, Pedidos, Caja, Inventario, Admin, Reportes, Pantalla, Seguir
 │   ├── src/components/     AppShell (sidebar), Logo (panda SVG), Receipt, ui
@@ -124,3 +128,33 @@ Os dados ficam no Postgres do Supabase (backups diários automáticos no plano d
 ## Rede local
 
 O servidor escuta em `0.0.0.0:3001`. Descubra o IP do PC (`ipconfig`) e acesse `http://IP:3001` de tablets, celulares e da TV da pantalla. Libere a porta 3001 no firewall do Windows se necessário. Para usar outra porta: `set PORT=8080 && npm start`.
+
+---
+
+## Publicar na Vercel
+
+O front (PWA) é servido pelo CDN da Vercel e a API roda como função serverless (`api/index.js`). Banco, fotos e tempo real ficam no Supabase, então não há nada para instalar na loja — só abrir o endereço.
+
+1. **Importar o repositório** em [vercel.com/new](https://vercel.com/new) (GitHub → `giokacafeybakery/gioka`). Framework: **Other**. Os comandos já estão em `vercel.json` (`npm run build`, saída `client/dist`); não precisa alterar nada.
+2. **Variáveis de ambiente** (Settings → Environment Variables, para *Production* e *Preview*):
+
+   | Variável | Valor |
+   |----------|-------|
+   | `DATABASE_URL` | connection string do Supabase em **modo transação (porta 6543)**: `postgresql://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:6543/postgres` (Project Settings → Database → Connection string → *Transaction pooler*). O modo sessão (5432) também funciona, mas esgota conexões com muitas funções. |
+   | `SUPABASE_URL` | `https://<ref>.supabase.co` |
+   | `SUPABASE_SERVICE_KEY` | chave `service_role` (Project Settings → API) — **secreta**, só no servidor |
+   | `SUPABASE_ANON_KEY` | chave `anon` / publishable — pública, vai para os navegadores (tempo real). Todas as tabelas têm RLS ativo sem políticas, então ela não lê nem escreve nada. |
+   | `SUPABASE_BUCKET` | `gioka` |
+   | `TZ` | fuso da loja, ex. `America/Bogota` — **obrigatório**: as funções rodam em UTC e os relatórios agrupam por dia local |
+   | `PG_POOL_MAX` | `2` (opcional; é o padrão na Vercel) |
+
+   Localmente, `node server/scripts/supabase-admin.mjs anon <ref>` imprime a anon key e `env <ref> <senha>` gera o `.env` completo.
+3. **Deploy**. A primeira requisição de cada instância roda `initDb()` (cria/migra tabelas, idempotente) — o banco já existente não é alterado.
+4. **Domínio**: Settings → Domains (ex. `gioka.com.br`). O PWA se instala a partir do domínio final; em celulares, abrir o endereço e "Adicionar à tela inicial".
+5. **Verificar**: `https://<seu-dominio>/api/health` deve responder `{"ok":true,"db":true}` e `/api/realtime` deve trazer `"enabled":true`.
+
+Limites na nuvem:
+
+- **Impressão térmica por rede (ESC/POS)** não funciona a partir da Vercel: o servidor não enxerga a impressora da rede local. Use o modo **Navegador** em Ajustes → Impresora (o driver da impressora no PC/tablet imprime o ticket de 80 mm), ou rode o servidor num PC da loja (`npm start`) para impressão direta.
+- Corpo da requisição limitado a 4,5 MB (as fotos já são reduzidas no aparelho antes de enviar).
+- Cada deploy publica o commit da `main`; previews são gerados para outras branches.

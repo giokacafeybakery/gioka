@@ -9,6 +9,10 @@ r.use(requireRole("admin", "cajero", "cocina"));
 
 async function send(buffer, s) {
   s ||= await getSettings();
+  if (process.env.VERCEL) {
+    const e = new Error("En la nube el servidor no alcanza la impresora de la red local. Usa el modo 'navegador' en Ajustes → Impresora o ejecuta el servidor en un PC de la cafetería.");
+    e.status = 400; throw e;
+  }
   if (s.printer_mode !== "network") {
     const e = new Error("La impresión directa está desactivada. Activa el modo 'red' en Ajustes → Impresora.");
     e.status = 400; throw e;

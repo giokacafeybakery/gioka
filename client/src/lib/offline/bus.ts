@@ -1,5 +1,5 @@
 /**
- * In-tab event bus. Offline operations emit the same event names the server broadcasts over Socket.IO
+ * In-tab event bus. Offline operations emit the same event names the server broadcasts over Supabase Realtime
  * ("order:created", "stock:updated", "cash:updated"…) plus "sync:changed" after every queue change, so pages that
  * subscribe through useSocket() refresh exactly the same way whether the change came from the network or from the queue.
  */

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { emit } from "../realtime.js";
 import { get, all, run, now, getSettings, transaction, localDayBounds, clientTime, clientId } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
 import { receiptBuffer, sendToPrinter } from "../escpos.js";
@@ -89,7 +90,7 @@ const publicView = (o) => o && ({
   items: o.items.map((i) => ({ name: i.name, qty: i.qty, emoji: i.emoji, options: (Array.isArray(i.options) ? i.options : []).map((x) => x.name) })),
 });
 
-async function applyStock(order, direction, userId, io, at) {
+async function applyStock(order, direction, userId, at) {
   // direction: -1 consume, +1 restore
   const t = at || now();
   const lows = [];
@@ -114,7 +115,7 @@ async function applyStock(order, direction, userId, io, at) {
       if (direction < 0 && ni.stock <= ni.min_stock) lows.push({ type: "ingredient", id: ing.id, name: ni.name, stock: ni.stock });
     }
   }
-  if (lows.length) io.emit("stock:low", lows);
+  if (lows.length) emit("stock:low", lows);
 }
 
 async function networkPrint(order, settings, kitchen) {
@@ -128,7 +129,7 @@ async function networkPrint(order, settings, kitchen) {
 
 const openSession = () => get("SELECT id FROM cash_sessions WHERE closed_at IS NULL ORDER BY id DESC LIMIT 1");
 
-export default function ordersRoutes(io) {
+export default function ordersRoutes() {
   const r = Router();
 
   // Public: track by code
@@ -220,11 +221,11 @@ export default function ordersRoutes(io) {
       const oid = x.lastInsertRowid;
       for (const it of items)
         await run("INSERT INTO order_items(order_id,product_id,name,emoji,price,qty,notes,options) VALUES(?,?,?,?,?,?,?,?)", oid, it.product_id, it.name, it.emoji, it.price, it.qty, it.notes, JSON.stringify(it.options));
-      await applyStock(await loadOrder(oid), -1, req.user.id, io, t);
+      await applyStock(await loadOrder(oid), -1, req.user.id, t);
       return oid;
     });
     const order = await loadOrder(orderId);
-    io.emit("order:created", order);
+    emit("order:created", order);
     if (settings.auto_print && !replay) { networkPrint(order, settings, false); networkPrint(order, settings, true); }
     res.json(order);
   });
@@ -243,7 +244,7 @@ export default function ordersRoutes(io) {
     await run("UPDATE orders SET payment_method=?, paid=1, paid_at=?, cash_received=?, updated_at=?, cash_session_id=COALESCE(cash_session_id, ?) WHERE id=?",
       payment_method, t, payment_method === "cash" && cash_received != null ? Number(cash_received) : null, t, session ? session.id : null, o.id);
     const order = await loadOrder(o.id);
-    io.emit("order:updated", order);
+    emit("order:updated", order);
     res.json(order);
   });
 
@@ -262,12 +263,12 @@ export default function ordersRoutes(io) {
     const t = replay ? clientTime(req.body.at) : now();
     if (status === "cancelled") {
       if (req.user.role !== "admin") return res.status(403).json({ error: "Solo un administrador puede cancelar pedidos" });
-      await transaction(() => applyStock(o, +1, req.user.id, io, t));
+      await transaction(() => applyStock(o, +1, req.user.id, t));
     }
     await run("UPDATE orders SET status=?, updated_at=?, ready_at=CASE WHEN ?::text='ready' THEN ? ELSE ready_at END, delivered_at=CASE WHEN ?::text='delivered' THEN ? ELSE delivered_at END WHERE id=?",
       status, t, status, t, status, t, o.id);
     const order = await loadOrder(o.id);
-    io.emit("order:updated", order);
+    emit("order:updated", order);
     res.json(order);
   });
 
@@ -282,7 +283,7 @@ export default function ordersRoutes(io) {
     await run("UPDATE orders SET customer_name=?, table_no=?, notes=?, customer_phone=?, customer_address=?, customer_reference=?, updated_at=? WHERE id=?",
       String(customer_name).trim(), String(table_no).trim(), notes, String(customer_phone).trim(), String(customer_address).trim(), String(customer_reference).trim(), now(), o.id);
     const order = await loadOrder(o.id);
-    io.emit("order:updated", order);
+    emit("order:updated", order);
     res.json(order);
   });
 

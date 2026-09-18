@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { emit } from "../realtime.js";
 import { get, all, run, now, transaction, clientTime, clientId } from "../db.js";
 import { saveImage } from "../storage.js";
 import { caption } from "../telegram.js";
@@ -26,7 +27,7 @@ const MOVEMENTS_SQL = `
     (SELECT daily_number FROM orders WHERE id=m.order_id) AS order_number
   FROM stock_movements m LEFT JOIN users u ON u.id=m.user_id`;
 
-export default function inventoryRoutes(io) {
+export default function inventoryRoutes() {
   const r = Router();
   const manager = requireRole("admin", "inventario"); // can move stock and manage ingredients
   const admin = requireRole("admin");
@@ -92,7 +93,7 @@ export default function inventoryRoutes(io) {
         item_type, row.id, delta, String(reason || (delta > 0 ? "entrada" : "salida")), String(notes || "").slice(0, 500), photoPath, (cid && id(req.body.user_id)) || req.user.id, t, cid, cid && req.body.offline ? 1 : 0);
     });
     const updated = await get(`SELECT * FROM ${table} WHERE id=?`, row.id);
-    io.emit("stock:updated", { item_type, item: updated });
+    emit("stock:updated", { item_type, item: updated });
     res.json(updated);
   });
 

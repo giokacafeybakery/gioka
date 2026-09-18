@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sendPhoto } from "./telegram.js";
+import { background } from "./bg.js";
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
 const BUCKET = process.env.SUPABASE_BUCKET || "gioka";
@@ -44,7 +45,7 @@ export async function saveImage(dataUrl, name, { types = "png|jpe?g|webp|gif", c
   if (!img) return null;
   const file = `${name}.${img.ext}`;
   const url = await store(img, file);
-  void sendPhoto({ buf: img.buf, mime: img.mime, name: file, caption });
+  background(sendPhoto({ buf: img.buf, mime: img.mime, name: file, caption }));
   return url;
 }
 

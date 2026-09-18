@@ -58,7 +58,7 @@ export default defineConfig({
           if (/[\/]node_modules[\/](react|react-dom|react-router|react-router-dom|scheduler|zustand)[\/]/.test(id)) return "vendor";
           if (/[\/]node_modules[\/]motion/.test(id) || /[\/]node_modules[\/]framer-motion/.test(id)) return "motion";
           if (/[\/]node_modules[\/](recharts|d3-|victory|internmap|delaunator|robust-predicates)/.test(id)) return "charts";
-          if (/[\/]node_modules[\/](socket\.io|engine\.io)/.test(id)) return "socket";
+          if (/[\/]node_modules[\/]@supabase[\/]/.test(id)) return "realtime";
           if (/[\/]node_modules[\/]lottie-web/.test(id)) return "lottie";
         },
       },
@@ -69,7 +69,6 @@ export default defineConfig({
     proxy: {
       "/api": { target: "http://localhost:3001", changeOrigin: true },
       "/uploads": { target: "http://localhost:3001", changeOrigin: true },
-      "/socket.io": { target: "http://localhost:3001", ws: true },
     },
   },
 });

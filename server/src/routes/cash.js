@@ -1,8 +1,9 @@
 import { Router } from "express";
+import { emit } from "../realtime.js";
 import { get, all, run, now, clientTime, clientId } from "../db.js";
 import { requireRole, authenticate } from "./auth.js";
 
-export default function cashRoutes(io) {
+export default function cashRoutes() {
 const r = Router();
 const staff = requireRole("admin", "cajero");
 
@@ -56,7 +57,7 @@ r.post("/open", staff, async (req, res) => {
   // Orders that were recorded offline while this session was open on the device get attached to it now.
   await run("UPDATE orders SET cash_session_id=? WHERE cash_session_id IS NULL AND created_at >= ?", x.lastInsertRowid, t);
   const s = await sessionSummary(await get("SELECT * FROM cash_sessions WHERE id=?", x.lastInsertRowid));
-  io.emit("cash:updated", s);
+  emit("cash:updated", s);
   res.json(s);
 });
 
@@ -80,7 +81,7 @@ r.post("/close", staff, async (req, res) => {
   const sum = await sessionSummary(s);
   await run("UPDATE cash_sessions SET closing_amount=?, expected_amount=?, notes=?, closed_at=? WHERE id=?",
     Number(b.closing_amount || 0), sum.expected_cash, String(b.notes || s.notes), replay ? clientTime(b.at) : now(), s.id);
-  if (!(await openSession())) io.emit("cash:updated", null);
+  if (!(await openSession())) emit("cash:updated", null);
   res.json(await sessionSummary(await get("SELECT * FROM cash_sessions WHERE id=?", s.id)));
 });
 

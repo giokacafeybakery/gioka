@@ -4,7 +4,7 @@ import { create } from "zustand";
  * Connectivity state. "online" means the API answered AND reached the database (GET /api/health),
  * so a server on the café's LAN whose Supabase link dropped counts as offline too.
  *
- * Signals: browser online/offline events, Socket.IO connect/disconnect, every failed/successful API call, and a
+ * Signals: browser online/offline events, the Realtime channel (re)joining, every failed/successful API call, and a
  * periodic probe (fast backoff while offline, a light check every minute while online). When we come back online the
  * registered listeners run (the sync engine flushes the queue).
  */
