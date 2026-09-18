@@ -74,7 +74,7 @@ export default function inventoryRoutes(io) {
     if (cid && (await get("SELECT 1 FROM stock_movements WHERE client_id=?", cid))) return res.json(row);
     // "Fijar stock" hecho sin conexión: el dispositivo manda el delta que calculó con el stock que veía (base_stock),
     // así una venta sincronizada entre medio no lo deja mal.
-    const base = cid && Number.isFinite(Number(req.body.base_stock)) ? Number(req.body.base_stock) : row.stock;
+    const base = cid && req.body.offline && Number.isFinite(Number(req.body.base_stock)) ? Number(req.body.base_stock) : row.stock;
     const delta = set ? Number(qty) - base : Number(qty);
     if (!Number.isFinite(delta) || delta === 0) return res.status(400).json({ error: "Cantidad inválida" });
     if (req.user.role === "inventario" && !photo) return res.status(400).json({ error: "Adjunta la foto del comprobante" });

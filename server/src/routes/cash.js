@@ -66,7 +66,7 @@ r.post("/open", staff, async (req, res) => {
  */
 r.post("/close", staff, async (req, res) => {
   const b = req.body || {};
-  const replay = !!clientId(b.op_id);
+  const replay = !!(clientId(b.op_id) && b.offline);
   let s;
   if (replay && (b.session_client_id || b.session_id)) {
     s = b.session_client_id ? await byClientId(String(b.session_client_id)) : await get("SELECT * FROM cash_sessions WHERE id=?", Number(b.session_id) || 0);

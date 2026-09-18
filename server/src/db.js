@@ -219,6 +219,9 @@ ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DE
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS client_id TEXT;
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS client_id TEXT;
+-- Delivery: dirección y punto de referencia para que el repartidor ubique al cliente con la factura.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS orders_client_id ON orders(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS movements_client_id ON stock_movements(client_id);
 CREATE UNIQUE INDEX IF NOT EXISTS cash_sessions_client_id ON cash_sessions(client_id);
