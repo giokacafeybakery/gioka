@@ -36,7 +36,7 @@ npm run dev          # server em :3001 e client em :5173
 | Correo              | Senha      | Perfil  | Acesso                                                                 |
 |---------------------|------------|---------|------------------------------------------------------------------------|
 | admin@gioka.com     | admin123   | Admin   | Tudo: edição de produtos, insumos, estoque, equipe, ajustes, relatórios |
-| cajero@gioka.com    | cajero123  | Cajero  | PDV, pedidos, caixa, inventário **somente leitura**                    |
+| cajero@gioka.com    | cajero123  | Cajero  | PDV, caixa, cobrança; nos pedidos só marca **Entregado**; sem inventário |
 | cocina@gioka.com    | cocina123  | Cocina  | Somente tela de pedidos (KDS)                                          |
 | inventario@gioka.com | inventario123 | Gestor de inventário | Entradas/saídas de estoque e insumos, **sempre com foto do comprovante**; não vê vendas nem menu |
 
