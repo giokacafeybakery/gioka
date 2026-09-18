@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { useSocket } from "@/lib/socket";
 import { money, greeting, STATUS, TYPE, elapsed } from "@/lib/format";
 import type { Category, Order, OrderStatus, OrderType, PaymentMethod, Product } from "@/lib/types";
-import { useCart, cartTotals } from "@/store/cart";
+import { useCart, cartTotals, customerError } from "@/store/cart";
 import { useSettings } from "@/store/settings";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -59,12 +59,14 @@ export default function Pos() {
 
   const submit = async (payNow: boolean) => {
     if (!cart.lines.length) return toast.warning("El pedido está vacío");
-    if (cart.type === "dinein" && !cart.tableNo) return toast.warning("Indica el número de mesa");
+    const missing = customerError(cart.type, cart);
+    if (missing) { setMobileCart(true); return toast.warning(missing); }
     if (payNow && payment === "cash" && cashReceived && Number(cashReceived) < totals.total) return toast.warning("El monto recibido es menor al total");
     setBusy(true);
     try {
       const order = await api.post<Order>("/api/orders", {
-        type: cart.type, customer_name: cart.customerName, customer_phone: cart.customerPhone, table_no: cart.tableNo, notes: cart.notes, discount: cart.discount,
+        type: cart.type, customer_name: cart.customerName.trim(), customer_phone: cart.customerPhone.trim(), table_no: cart.tableNo.trim(),
+        customer_address: cart.address.trim(), customer_reference: cart.reference.trim(), notes: cart.notes, discount: cart.discount,
         payment_method: payNow ? payment : null, cash_received: payNow && payment === "cash" && cashReceived ? Number(cashReceived) : null,
         items: cart.lines.map((l) => ({ product_id: l.product.id, qty: l.qty, notes: l.notes })),
       });
@@ -98,13 +100,19 @@ export default function Pos() {
           ))}
         </div>
         <div className="grid grid-cols-[1fr_auto] gap-2 mt-2">
-          <input className="input h-10" placeholder="Nombre del cliente" value={cart.customerName} onChange={(e) => cart.set({ customerName: e.target.value })} />
+          <input className="input h-10" placeholder={cart.type === "dinein" ? "Nombre (opcional)" : "Nombre del cliente *"} value={cart.customerName} onChange={(e) => cart.set({ customerName: e.target.value })} />
           {cart.type === "dinein" ? (
-            <input className="input h-10 w-20 text-center" placeholder="Mesa" value={cart.tableNo} onChange={(e) => cart.set({ tableNo: e.target.value })} />
+            <input className="input h-10 w-20 text-center" placeholder="Mesa *" value={cart.tableNo} onChange={(e) => cart.set({ tableNo: e.target.value })} />
           ) : cart.type === "delivery" ? (
-            <input className="input h-10 w-32" placeholder="Teléfono" value={cart.customerPhone} onChange={(e) => cart.set({ customerPhone: e.target.value })} />
+            <input className="input h-10 w-32" placeholder="Teléfono *" inputMode="tel" value={cart.customerPhone} onChange={(e) => cart.set({ customerPhone: e.target.value })} />
           ) : null}
         </div>
+        {cart.type === "delivery" && (
+          <div className="mt-2 flex flex-col gap-2">
+            <input className="input h-10" placeholder="Dirección de entrega *" value={cart.address} onChange={(e) => cart.set({ address: e.target.value })} />
+            <input className="input h-10" placeholder="Punto de referencia *" value={cart.reference} onChange={(e) => cart.set({ reference: e.target.value })} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 min-h-0">
@@ -192,7 +200,8 @@ export default function Pos() {
             ) : (
               <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 pb-1">
                 {active.map((o) => {
-                  const st = STATUS[o.status]; const n = NEXT[o.status];
+                  // Cajero only hands the order over once the kitchen marks it ready; admin can push it through every step.
+                  const st = STATUS[o.status]; const n = user?.role === "admin" || o.status === "ready" ? NEXT[o.status] : undefined;
                   return (
                     <div key={o.id} className="card p-3.5 w-[268px] shrink-0 anim-fade-up">
                       <div className="flex items-center justify-between text-xs font-extrabold text-muted"><span className="flex items-center gap-1.5">{TYPE_ICON[o.type]}{TYPE[o.type].label}{o.table_no && ` · ${o.table_no}`}</span><span>{elapsed(o.created_at)}</span></div>

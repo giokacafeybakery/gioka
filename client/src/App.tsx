@@ -51,7 +51,7 @@ export default function App() {
                 <Route path="/caja" element={<Caja />} />
               </Route>
               <Route path="/pedidos" element={<Pedidos />} />
-              <Route element={<Guard roles={["admin", "cajero"]} />}>
+              <Route element={<Guard roles={["admin"]} />}>
                 <Route path="/inventario" element={<Inventario />} />
               </Route>
               <Route element={<Guard roles={["admin"]} />}>

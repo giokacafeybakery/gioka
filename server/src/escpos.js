@@ -75,6 +75,12 @@ export function receiptBuffer(order, settings, { kitchen = false } = {}) {
   p.bold(true).size(2, 2).text(kitchen ? `COCINA  #${order.daily_number}` : `PEDIDO  #${order.daily_number}`).size(1, 1).bold(false);
   p.text(`${TYPE[order.type] || order.type}${order.table_no ? "  Mesa " + order.table_no : ""}`);
   if (order.customer_name) p.text(`Cliente: ${order.customer_name}`);
+  if (order.type === "delivery") {
+    p.align("left").line("-").bold(true).text("ENTREGA A DOMICILIO").bold(false);
+    if (order.customer_phone) p.text(`Tel: ${order.customer_phone}`);
+    if (order.customer_address) p.text(`Dir: ${order.customer_address}`);
+    if (order.customer_reference) p.text(`Ref: ${order.customer_reference}`);
+  } else if (order.customer_phone) p.text(`Tel: ${order.customer_phone}`);
   p.align("left").text(`Codigo: ${order.code}    ${dateStr}`);
   p.line("-");
   for (const it of order.items) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, CreditCard, QrCode } from "lucide-react";
+import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, CreditCard, QrCode, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Empty, Segmented, Confirm } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
@@ -66,7 +66,10 @@ export default function Pedidos() {
     { status: "pending", hint: "Por preparar" }, { status: "preparing", hint: "En cocina" }, { status: "ready", hint: "Para entregar" },
   ];
   const history = orders.filter((o) => o.status === "delivered" || o.status === "cancelled");
-  const canManage = user?.role === "admin" || user?.role === "cajero";
+  // admin: everything · cocina: pending → preparing → ready · cajero: only "Entregar" (and cobrar) once the order is ready
+  const isAdmin = user?.role === "admin";
+  const canCook = isAdmin || user?.role === "cocina";
+  const canManage = isAdmin || user?.role === "cajero";
 
   const Card = ({ o }: { o: Order }) => {
     const st = STATUS[o.status];
@@ -96,8 +99,8 @@ export default function Pedidos() {
         <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
           <div className="flex-1" />
-          {o.status === "pending" && <button className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
-          {o.status === "preparing" && <button className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> Listo</button>}
+          {o.status === "pending" && canCook && <button className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
+          {o.status === "preparing" && canCook && <button className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> Listo</button>}
           {o.status === "ready" && canManage && (o.paid ? <button className="btn btn-sm btn-dark" onClick={() => setStatus(o, "delivered")}>Entregar</button> : <button className="btn btn-sm btn-primary" onClick={() => setPayFor(o)}><Banknote size={16} /> Cobrar</button>)}
         </div>
       </div>
@@ -161,13 +164,13 @@ export default function Pedidos() {
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `Pedido #${detail.daily_number}` : ""} subtitle={detail ? `${TYPE[detail.type].label}${detail.table_no ? ` · Mesa ${detail.table_no}` : ""} · ${time(detail.created_at)} · ${detail.user_name || ""}` : ""}
         footer={detail && (
           <>
-            {canManage && detail.status !== "cancelled" && detail.status !== "delivered" && <button className="btn-danger mr-auto" onClick={() => { setCancel(detail); }}><XCircle size={18} /> Cancelar</button>}
+            {isAdmin && detail.status !== "cancelled" && detail.status !== "delivered" && <button className="btn-danger mr-auto" onClick={() => { setCancel(detail); }}><XCircle size={18} /> Cancelar</button>}
             {canManage && <button className="btn-soft" onClick={() => printOrder(detail)}><Printer size={18} /> Ticket</button>}
             <button className="btn-soft" onClick={() => printOrder(detail, { kitchen: true })}><Printer size={18} /> Comanda</button>
-            {detail.status === "preparing" && <button className="btn-soft" onClick={() => setStatus(detail, "pending")}><Undo2 size={18} /> Volver</button>}
-            {detail.status === "ready" && <button className="btn-soft" onClick={() => setStatus(detail, "preparing")}><Undo2 size={18} /> Volver</button>}
-            {detail.status === "pending" && <button className="btn bg-sky text-white" onClick={() => setStatus(detail, "preparing")}>Preparar</button>}
-            {detail.status === "preparing" && <button className="btn-mint" onClick={() => setStatus(detail, "ready")}>Listo</button>}
+            {detail.status === "preparing" && canCook && <button className="btn-soft" onClick={() => setStatus(detail, "pending")}><Undo2 size={18} /> Volver</button>}
+            {detail.status === "ready" && canCook && <button className="btn-soft" onClick={() => setStatus(detail, "preparing")}><Undo2 size={18} /> Volver</button>}
+            {detail.status === "pending" && canCook && <button className="btn bg-sky text-white" onClick={() => setStatus(detail, "preparing")}>Preparar</button>}
+            {detail.status === "preparing" && canCook && <button className="btn-mint" onClick={() => setStatus(detail, "ready")}>Listo</button>}
             {detail.status === "ready" && canManage && (detail.paid ? <button className="btn-dark" onClick={() => setStatus(detail, "delivered")}>Entregar</button> : <button className="btn-primary" onClick={() => setPayFor(detail)}>Cobrar</button>)}
           </>
         )}>
@@ -179,6 +182,12 @@ export default function Pedidos() {
               <span className="pill bg-cream text-ink-3">{detail.code}</span>
             </div>
             {detail.customer_name && <div className="font-extrabold mb-3">👤 {detail.customer_name}{detail.customer_phone && <span className="text-muted font-bold"> · {detail.customer_phone}</span>}</div>}
+            {detail.type === "delivery" && (detail.customer_address || detail.customer_reference) && (
+              <div className="mb-3 rounded-xl bg-sky-soft px-3 py-2 text-sm font-bold text-ink-3">
+                <div className="flex items-start gap-2"><MapPin size={16} className="shrink-0 mt-0.5 text-sky" /><span>{detail.customer_address}</span></div>
+                {detail.customer_reference && <div className="text-xs font-semibold text-muted mt-1 pl-6">Ref.: {detail.customer_reference}</div>}
+              </div>
+            )}
             <ul className="divide-y divide-line">
               {detail.items.map((it, i) => (
                 <li key={i} className="py-2 flex justify-between gap-3"><span className="font-bold"><span className="text-peach-2 font-black mr-2">{it.qty}×</span>{it.name}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span><span className="font-black">{money(it.qty * it.price)}</span></li>

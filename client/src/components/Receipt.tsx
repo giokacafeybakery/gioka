@@ -46,6 +46,15 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
       <div className="c xl">{kitchen ? "COCINA" : "PEDIDO"} #{order.daily_number}</div>
       <div className="c b">{TYPE[order.type].label.toUpperCase()}{order.table_no ? ` · Mesa ${order.table_no}` : ""}</div>
       {order.customer_name && <div className="c">Cliente: {order.customer_name}</div>}
+      {order.type === "delivery" ? (
+        <>
+          <div className="hr" />
+          <div className="b">ENTREGA A DOMICILIO</div>
+          {order.customer_phone && <div>Tel: {order.customer_phone}</div>}
+          {order.customer_address && <div>Dir: {order.customer_address}</div>}
+          {order.customer_reference && <div>Ref: {order.customer_reference}</div>}
+        </>
+      ) : order.customer_phone ? <div className="c">Tel: {order.customer_phone}</div> : null}
       <div className="row"><span>{order.code}</span><span>{d.toLocaleDateString("es")} {d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span></div>
       <div className="hr" />
       {order.items.map((it, i) => (

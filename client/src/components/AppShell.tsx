@@ -19,23 +19,23 @@ export default function AppShell() {
 
   useEffect(() => { load().catch(() => {}); }, [load]);
   useEffect(() => {
-    if (!user || user.role === "cocina") return;
+    if (user?.role !== "admin") return;
     api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {});
   }, [user]);
   useSocket({
     "stock:low": (items: { name: string; stock: number }[]) => {
-      if (user?.role === "cocina") return;
+      if (user?.role !== "admin") return;
       api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {});
       toast.warning("Stock bajo", items.map((i) => i.name).slice(0, 3).join(", ") + (items.length > 3 ? "…" : ""));
     },
-    "stock:updated": () => api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}),
+    "stock:updated": () => { if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
   }, [user?.role]);
 
   const items: NavItem[] = ([
     { to: "/pos", label: "Punto de venta", short: "Vender", icon: <ShoppingBag size={22} />, roles: ["admin", "cajero"] },
     { to: "/pedidos", label: "Pedidos", short: "Pedidos", icon: <ChefHat size={22} />, roles: ["admin", "cajero", "cocina"] },
     { to: "/caja", label: "Caja", short: "Caja", icon: <Wallet size={22} />, roles: ["admin", "cajero"] },
-    { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin", "cajero"], badge: low },
+    { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin"], badge: low },
     { to: "/reportes", label: "Reportes", short: "Reportes", icon: <BarChart3 size={22} />, roles: ["admin"] },
     { to: "/admin", label: "Administración", short: "Admin", icon: <Settings2 size={22} />, roles: ["admin"] },
   ] as NavItem[]).filter((i) => user && i.roles.includes(user.role));

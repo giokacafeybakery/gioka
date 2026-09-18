@@ -19,6 +19,7 @@ export type PaymentMethod = "cash" | "card" | "qr";
 export interface OrderItem { id?: number; product_id: number | null; name: string; emoji: string; price: number; qty: number; notes: string }
 export interface Order {
   id: number; code: string; daily_number: number; type: OrderType; customer_name: string; customer_phone: string; table_no: string;
+  customer_address: string; customer_reference: string;
   status: OrderStatus; payment_method: PaymentMethod | null; paid: boolean; subtotal: number; discount: number; tax: number; total: number;
   cash_received: number | null; notes: string; user_id: number; user_name?: string; created_at: string; updated_at: string;
   paid_at: string | null; ready_at: string | null; delivered_at: string | null; items: OrderItem[];
