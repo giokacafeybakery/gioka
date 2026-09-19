@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { get, all, run, hashPassword, verifyPassword, newToken, now } from "../db.js";
-import { loginLimiter } from "../app.js";
+import { rateLimit } from "../rateLimit.js";
 
 export const requireAuth = (req, res, next) =>
   req.user ? next() : res.status(401).json({ error: "No autorizado" });
@@ -20,6 +20,7 @@ export async function authenticate(email, password) {
 }
 
 const r = Router();
+const loginLimiter = rateLimit({ windowMs: 60_000, max: 5, message: "Demasiados intentos de inicio de sesión. Espera un minuto." });
 
 r.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};

@@ -54,8 +54,6 @@ app.use(express.json({ limit: "12mb" }));
 // ---- Rate limiting global (60 req/min per IP) ----
 app.use("/api", rateLimit({ windowMs: 60_000, max: 60 }));
 
-// Stricter limiter for login (5 attempts/min per IP)
-export const loginLimiter = rateLimit({ windowMs: 60_000, max: 5, message: "Demasiados intentos de inicio de sesión. Espera un minuto." });
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), { maxAge: "30d", immutable: true }));
 
 // Attach user (if token present) to every request
