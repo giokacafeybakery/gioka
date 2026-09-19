@@ -13,8 +13,7 @@
     "allowImportingTsExtensions": true,
     "noUnusedLocals": false,
     "types": ["vite/client", "vite-plugin-pwa/client"],
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }
