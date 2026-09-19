@@ -1,9 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm install && cd client && npm install",
+  "installCommand": "npm install",
   "buildCommand": "npm run build --workspace=client",
   "outputDirectory": "client/dist",
+  "build": {
+    "env": {
+      "NPM_CONFIG_PRODUCTION": "false"
+    }
+  },
   "functions": {
     "api/index.js": { "maxDuration": 30, "memory": 1024 }
   },
