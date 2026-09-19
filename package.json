@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "22.x" },
+  "engines": { "node": ">=22" },
   "description": "Gioka — Café · Heladería · Bakery. Sistema de punto de venta, pedidos, inventario y reportes.",
   "scripts": {
     "dev": "concurrently -n server,client -c green,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
