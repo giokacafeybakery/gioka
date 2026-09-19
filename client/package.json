@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "npx --yes typescript@5.7.3 tsc -b && npx --yes vite@6.1.0 build",
+    "build": "npx --yes tsc -b && npx --yes vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
