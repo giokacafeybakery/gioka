@@ -15,5 +15,9 @@
   "workspaces": ["server", "client"],
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
   }
 }
