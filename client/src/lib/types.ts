@@ -43,6 +43,23 @@ export interface Settings {
   auto_print: boolean; order_prefix: string; public_url: string;
   telegram_bot_token: string; telegram_chat_id: string;
   receipt_show_logo?: boolean; receipt_show_customer?: boolean; receipt_show_notes?: boolean; receipt_show_tracking?: boolean;
+  receipt_social?: string; receipt_wifi?: string;
+  /* Extended receipt customization */
+  receipt_show_tagline?: boolean;
+  receipt_show_address?: boolean;
+  receipt_show_phone?: boolean;
+  receipt_show_payment?: boolean;
+  receipt_show_change?: boolean;
+  receipt_show_items_price?: boolean;
+  receipt_show_subtotal?: boolean;
+  receipt_show_tax?: boolean;
+  receipt_show_order_type?: boolean;
+  receipt_show_date?: boolean;
+  receipt_show_order_number?: boolean;
+  receipt_separator_style?: "dashed" | "solid" | "dotted" | "double";
+  receipt_font_size?: "small" | "normal" | "large";
+  receipt_header_text?: string;
+  receipt_show_emoji?: boolean;
 }
 
 export interface CashSession {

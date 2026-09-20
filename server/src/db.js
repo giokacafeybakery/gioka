@@ -309,6 +309,23 @@ const DEFAULT_SETTINGS = {
   receipt_show_customer: true,
   receipt_show_notes: true,
   receipt_show_tracking: true,
+  receipt_social: "",
+  receipt_wifi: "",
+  receipt_show_tagline: true,
+  receipt_show_address: true,
+  receipt_show_phone: true,
+  receipt_show_payment: true,
+  receipt_show_change: true,
+  receipt_show_items_price: true,
+  receipt_show_subtotal: true,
+  receipt_show_tax: true,
+  receipt_show_order_type: true,
+  receipt_show_date: true,
+  receipt_show_order_number: true,
+  receipt_separator_style: "dashed",
+  receipt_font_size: "normal",
+  receipt_header_text: "",
+  receipt_show_emoji: false,
 };
 
 /** Create tables (idempotent) and seed demo data on an empty database. Called once at startup. */

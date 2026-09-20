@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Pencil, Trash2, ImagePlus, Crop, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, Crop, X, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye, Type, SlidersHorizontal, ReceiptText, Smile } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Toggle, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -11,6 +11,7 @@ import { toast } from "@/store/toast";
 import { StockLog } from "@/components/StockLog";
 import { ImageCropper } from "@/components/ImageCropper";
 import { OptionsEditor } from "@/components/OptionsEditor";
+import { ReceiptView } from "@/components/Receipt";
 
 type Tab = "products" | "categories" | "stock" | "users" | "settings";
 const EMOJIS = ["☕", "🍵", "🧋", "🥤", "🧃", "🍹", "🍦", "🍨", "🍧", "🍰", "🧁", "🍩", "🍪", "🍫", "🍓", "🍌", "🥐", "🥖", "🥯", "🍞", "🥧", "🥪", "🥑", "🧀", "🍕", "🌮", "🥗", "🍳", "💧", "🫖", "🍽️", "🐼"];
@@ -285,80 +286,192 @@ function SettingsTab() {
       toast.success("Telegram conectado", `Mensaje de prueba enviado a ${ok.chat}`);
     } catch (e) { setTg((t) => ({ ...t, busy: false })); toast.error("Telegram", (e as Error).message); }
   };
+
+  const previewOrder = {
+    id: 0, code: form.order_prefix ? form.order_prefix + "014" : "G014", daily_number: 14, type: "takeaway" as const, customer_name: "María", customer_phone: "12345678", table_no: "",
+    customer_address: "", customer_reference: "", status: "ready" as const, payment_method: "cash" as const, paid: true,
+    subtotal: 9.5, discount: 0, tax: (form.tax_rate || 0) > 0 ? (9.5 * (form.tax_rate || 0)) / 100 : 0, total: 9.5 + ((form.tax_rate || 0) > 0 ? (9.5 * (form.tax_rate || 0)) / 100 : 0), cash_received: 10, notes: "Sin azúcar por favor",
+    user_id: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), paid_at: new Date().toISOString(), ready_at: new Date().toISOString(), delivered_at: null,
+    items: [
+      { name: "Cappuccino", qty: 2, price: 3.8, emoji: "☕", notes: "", options: [{ group: "Leche", name: "Almendra", price: 0.6 }] },
+      { name: "Croissant Mantequilla", qty: 1, price: 2.9, emoji: "🥐", notes: "" }
+    ],
+    refund_method: null, refund_amount: null, refunded_at: null
+  } as any;
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-5xl">
-      <section className="card p-5">
-        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Store size={20} className="text-peach" /> Negocio</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Nombre"><input className="input" {...f("business_name")} /></Field>
-          <Field label="Eslogan"><input className="input" {...f("business_tagline")} /></Field>
-          <Field label="Dirección" className="col-span-2"><input className="input" {...f("business_address")} /></Field>
-          <Field label="Teléfono"><input className="input" {...f("business_phone")} /></Field>
-          <Field label="Símbolo de moneda"><input className="input" {...f("currency")} /></Field>
-          <Field label="Impuesto (%)" hint="0 si el precio ya lo incluye"><input className="input" type="number" step="0.1" min={0} {...f("tax_rate")} /></Field>
-          <Field label="Prefijo de pedidos"><input className="input" maxLength={3} {...f("order_prefix")} /></Field>
-          <Field label="Pie del ticket" className="col-span-2"><input className="input" {...f("receipt_footer")} /></Field>
-          <Field label="URL pública (seguimiento)" hint="Ej: http://192.168.0.10:3001 — se imprime como QR en el ticket" className="col-span-2"><div className="relative"><Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9" placeholder="http://…" {...f("public_url")} /></div></Field>
+    <div className="flex gap-6 max-w-[1400px]">
+      {/* ---- Left column: all settings ---- */}
+      <div className="flex-1 min-w-0 space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <section className="card p-5">
+            <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Store size={20} className="text-peach" /> Negocio</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Nombre"><input className="input" {...f("business_name")} /></Field>
+              <Field label="Eslogan"><input className="input" {...f("business_tagline")} /></Field>
+              <Field label="Dirección" className="col-span-2"><input className="input" {...f("business_address")} /></Field>
+              <Field label="Teléfono"><input className="input" {...f("business_phone")} /></Field>
+              <Field label="Símbolo de moneda"><input className="input" {...f("currency")} /></Field>
+              <Field label="Impuesto (%)" hint="0 si el precio ya lo incluye"><input className="input" type="number" step="0.1" min={0} {...f("tax_rate")} /></Field>
+              <Field label="Prefijo de pedidos"><input className="input" maxLength={3} {...f("order_prefix")} /></Field>
+              <Field label="Pie del ticket" className="col-span-2"><input className="input" placeholder="¡Gracias por tu visita!" {...f("receipt_footer")} /></Field>
+              <Field label="URL pública (seguimiento)" hint="Ej: http://192.168.0.10:3001 — se imprime como QR en el ticket" className="col-span-2"><div className="relative"><Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9" placeholder="http://…" {...f("public_url")} /></div></Field>
+            </div>
+          </section>
+          <section className="card p-5">
+            <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Printer size={20} className="text-peach" /> Impresora térmica</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="label">Modo de impresión</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setForm({ ...form, printer_mode: "browser" })} className={`p-3 rounded-xl border-2 text-left ${form.printer_mode === "browser" ? "border-peach bg-peach-soft" : "border-line"}`}><div className="font-extrabold text-sm flex items-center gap-1.5"><Printer size={15} /> Navegador</div><div className="text-xs font-semibold text-muted mt-1">Usa el driver de Windows (diálogo de impresión, 80 mm). Compatible con cualquier impresora.</div></button>
+                  <button onClick={() => setForm({ ...form, printer_mode: "network" })} className={`p-3 rounded-xl border-2 text-left ${form.printer_mode === "network" ? "border-peach bg-peach-soft" : "border-line"}`}><div className="font-extrabold text-sm flex items-center gap-1.5"><Wifi size={15} /> Red (ESC/POS)</div><div className="text-xs font-semibold text-muted mt-1">Envío directo por IP al puerto 9100. Sin diálogos, corta papel y abre cajón.</div></button>
+                </div>
+              </div>
+              {form.printer_mode === "network" && (<>
+                <Field label="IP de la impresora"><input className="input font-mono" {...f("printer_host")} /></Field>
+                <Field label="Puerto"><input className="input font-mono" type="number" {...f("printer_port")} /></Field>
+              </>)}
+              <Field label="Ancho (caracteres)" hint="58 mm = 32 · 80 mm = 42 o 48"><select className="input" {...f("printer_width")}><option value={32}>32 (58 mm)</option><option value={42}>42 (80 mm)</option><option value={48}>48 (80 mm)</option></select></Field>
+              <div className="flex items-end pb-2"><Toggle checked={!!form.auto_print} onChange={(v) => setForm({ ...form, auto_print: v })} label="Imprimir al crear pedido" /></div>
+              {form.printer_mode === "network" && <div className="col-span-2"><button className="btn-soft btn-sm" onClick={test}><Printer size={15} /> Imprimir página de prueba</button></div>}
+            </div>
+          </section>
         </div>
-      </section>
-      <section className="card p-5">
-        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><Printer size={20} className="text-peach" /> Impresora térmica</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label className="label">Modo de impresión</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setForm({ ...form, printer_mode: "browser" })} className={`p-3 rounded-xl border-2 text-left ${form.printer_mode === "browser" ? "border-peach bg-peach-soft" : "border-line"}`}><div className="font-extrabold text-sm flex items-center gap-1.5"><Printer size={15} /> Navegador</div><div className="text-xs font-semibold text-muted mt-1">Usa el driver de Windows (diálogo de impresión, 80 mm). Compatible con cualquier impresora.</div></button>
-              <button onClick={() => setForm({ ...form, printer_mode: "network" })} className={`p-3 rounded-xl border-2 text-left ${form.printer_mode === "network" ? "border-peach bg-peach-soft" : "border-line"}`}><div className="font-extrabold text-sm flex items-center gap-1.5"><Wifi size={15} /> Red (ESC/POS)</div><div className="text-xs font-semibold text-muted mt-1">Envío directo por IP al puerto 9100. Sin diálogos, corta papel y abre cajón.</div></button>
+
+        {/* ---- Full ticket customization ---- */}
+        <section className="card p-5">
+          <h3 className="font-black text-lg flex items-center gap-2 mb-1"><ReceiptText size={20} className="text-peach" /> Personalización del Ticket</h3>
+          <p className="text-sm font-semibold text-muted mb-5">Configura exactamente qué se muestra en cada ticket impreso. Los cambios se ven al instante en la vista previa.</p>
+
+          {/* Encabezado */}
+          <div className="mb-5">
+            <h4 className="text-[13px] font-extrabold uppercase tracking-wider text-peach-2 flex items-center gap-1.5 mb-3"><Store size={14} /> Encabezado</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2.5 pl-1">
+              <Toggle checked={form.receipt_show_logo !== false} onChange={(v) => setForm({ ...form, receipt_show_logo: v })} label="Mostrar logotipo (imagen superior)" />
+              <Toggle checked={form.receipt_show_tagline !== false} onChange={(v) => setForm({ ...form, receipt_show_tagline: v })} label="Mostrar eslogan del negocio" />
+              <Toggle checked={form.receipt_show_address !== false} onChange={(v) => setForm({ ...form, receipt_show_address: v })} label="Mostrar dirección" />
+              <Toggle checked={form.receipt_show_phone !== false} onChange={(v) => setForm({ ...form, receipt_show_phone: v })} label="Mostrar teléfono" />
+            </div>
+            <div className="mt-3">
+              <Field label="Texto de encabezado personalizado (opcional)" hint="Se muestra debajo del logo, encima del nombre"><input className="input" placeholder="Ej: ¡Bienvenido!" {...f("receipt_header_text")} /></Field>
             </div>
           </div>
-          {form.printer_mode === "network" && (<>
-            <Field label="IP de la impresora"><input className="input font-mono" {...f("printer_host")} /></Field>
-            <Field label="Puerto"><input className="input font-mono" type="number" {...f("printer_port")} /></Field>
-          </>)}
-          <Field label="Ancho (caracteres)" hint="58 mm = 32 · 80 mm = 42 o 48"><select className="input" {...f("printer_width")}><option value={32}>32 (58 mm)</option><option value={42}>42 (80 mm)</option><option value={48}>48 (80 mm)</option></select></Field>
-          <div className="flex items-end pb-2"><Toggle checked={!!form.auto_print} onChange={(v) => setForm({ ...form, auto_print: v })} label="Imprimir al crear pedido" /></div>
-          {form.printer_mode === "network" && <div className="col-span-2"><button className="btn-soft btn-sm" onClick={test}><Printer size={15} /> Imprimir página de prueba</button></div>}
-        </div>
-      </section>
-      <section className="card p-5">
-        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><ClipboardList size={20} className="text-peach" /> Opciones del Ticket</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3">
-          <Toggle checked={form.receipt_show_logo !== false} onChange={(v) => setForm({ ...form, receipt_show_logo: v })} label="Mostrar logotipo (logo superior)" />
-          <Toggle checked={form.receipt_show_customer !== false} onChange={(v) => setForm({ ...form, receipt_show_customer: v })} label="Mostrar datos del cliente" />
-          <Toggle checked={form.receipt_show_notes !== false} onChange={(v) => setForm({ ...form, receipt_show_notes: v })} label="Mostrar notas del pedido" />
-          <Toggle checked={form.receipt_show_tracking !== false} onChange={(v) => setForm({ ...form, receipt_show_tracking: v })} label="Mostrar código QR de seguimiento" />
-        </div>
-      </section>
-      <section className="card p-5 xl:col-span-2">
-        <div className="flex items-start justify-between gap-4 mb-4">
+
+          {/* Contenido */}
+          <div className="mb-5">
+            <h4 className="text-[13px] font-extrabold uppercase tracking-wider text-peach-2 flex items-center gap-1.5 mb-3"><ClipboardList size={14} /> Contenido del Pedido</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2.5 pl-1">
+              <Toggle checked={form.receipt_show_order_number !== false} onChange={(v) => setForm({ ...form, receipt_show_order_number: v })} label="Mostrar número de pedido" />
+              <Toggle checked={form.receipt_show_order_type !== false} onChange={(v) => setForm({ ...form, receipt_show_order_type: v })} label="Mostrar tipo de pedido" />
+              <Toggle checked={form.receipt_show_customer !== false} onChange={(v) => setForm({ ...form, receipt_show_customer: v })} label="Mostrar datos del cliente" />
+              <Toggle checked={form.receipt_show_date !== false} onChange={(v) => setForm({ ...form, receipt_show_date: v })} label="Mostrar fecha y hora" />
+              <Toggle checked={form.receipt_show_items_price !== false} onChange={(v) => setForm({ ...form, receipt_show_items_price: v })} label="Mostrar precio por producto" />
+              <Toggle checked={form.receipt_show_emoji !== false} onChange={(v) => setForm({ ...form, receipt_show_emoji: v })} label="Mostrar emoji del producto" />
+              <Toggle checked={form.receipt_show_notes !== false} onChange={(v) => setForm({ ...form, receipt_show_notes: v })} label="Mostrar notas del pedido" />
+            </div>
+          </div>
+
+          {/* Totales y Pago */}
+          <div className="mb-5">
+            <h4 className="text-[13px] font-extrabold uppercase tracking-wider text-peach-2 flex items-center gap-1.5 mb-3"><Tags size={14} /> Totales y Pago</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2.5 pl-1">
+              <Toggle checked={form.receipt_show_subtotal !== false} onChange={(v) => setForm({ ...form, receipt_show_subtotal: v })} label="Mostrar subtotal y descuento" />
+              <Toggle checked={form.receipt_show_tax !== false} onChange={(v) => setForm({ ...form, receipt_show_tax: v })} label="Mostrar impuesto" />
+              <Toggle checked={form.receipt_show_payment !== false} onChange={(v) => setForm({ ...form, receipt_show_payment: v })} label="Mostrar método de pago" />
+              <Toggle checked={form.receipt_show_change !== false} onChange={(v) => setForm({ ...form, receipt_show_change: v })} label="Mostrar recibido y cambio" />
+            </div>
+          </div>
+
+          {/* Pie del Ticket */}
+          <div className="mb-5">
+            <h4 className="text-[13px] font-extrabold uppercase tracking-wider text-peach-2 flex items-center gap-1.5 mb-3"><Type size={14} /> Pie del Ticket</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2.5 pl-1 mb-3">
+              <Toggle checked={form.receipt_show_tracking !== false} onChange={(v) => setForm({ ...form, receipt_show_tracking: v })} label="Mostrar código QR de seguimiento" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Redes sociales (opcional)"><input className="input" placeholder="Ej: @gioka.cafe" {...f("receipt_social")} /></Field>
+              <Field label="Contraseña WiFi (opcional)"><input className="input" placeholder="Ej: WiFi: Gioka123" {...f("receipt_wifi")} /></Field>
+            </div>
+          </div>
+
+          {/* Estilo */}
           <div>
-            <h3 className="font-black text-lg flex items-center gap-2"><Send size={20} className="text-peach" /> Telegram · copia de las fotos</h3>
-            <p className="text-sm font-semibold text-muted mt-1">Cada foto que se sube al app (comprobantes de entradas y salidas de stock, fotos de productos) se reenvía a un canal o grupo de Telegram con el detalle del movimiento y quién lo hizo.</p>
-          </div>
-          <span className={`pill shrink-0 ${tg.ok ? "bg-mint-soft text-mint" : tgConfigured ? "bg-peach-soft text-peach" : "bg-line/60 text-muted"}`}>
-            {tg.ok ? <><CheckCircle2 size={14} /> @{tg.ok.bot} → {tg.ok.chat}</> : tgConfigured ? "Configurado" : "Sin configurar"}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-          <Field label="Token del bot" hint="Lo entrega @BotFather al crear el bot (/newbot)">
-            <div className="relative">
-              <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input className="input pl-9 pr-10 font-mono text-sm" type={tg.showToken ? "text" : "password"} autoComplete="off" spellCheck={false} placeholder="123456789:AAH…" {...f("telegram_bot_token")} />
-              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted hover:bg-line/60" title={tg.showToken ? "Ocultar" : "Mostrar"} onClick={() => setTg((t) => ({ ...t, showToken: !t.showToken }))}>{tg.showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+            <h4 className="text-[13px] font-extrabold uppercase tracking-wider text-peach-2 flex items-center gap-1.5 mb-3"><SlidersHorizontal size={14} /> Estilo</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Tamaño de fuente">
+                <div className="grid grid-cols-3 gap-2">
+                  {(["small", "normal", "large"] as const).map((sz) => (
+                    <button key={sz} onClick={() => setForm({ ...form, receipt_font_size: sz })} className={`p-2 rounded-xl border-2 text-center font-bold text-sm transition-all ${form.receipt_font_size === sz || (!form.receipt_font_size && sz === "normal") ? "border-peach bg-peach-soft text-peach-2" : "border-line hover:border-line/80"}`}>
+                      {sz === "small" ? "Pequeña" : sz === "normal" ? "Normal" : "Grande"}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Estilo de separador">
+                <div className="grid grid-cols-4 gap-2">
+                  {(["dashed", "solid", "dotted", "double"] as const).map((st) => (
+                    <button key={st} onClick={() => setForm({ ...form, receipt_separator_style: st })} className={`p-2 rounded-xl border-2 text-center transition-all ${form.receipt_separator_style === st || (!form.receipt_separator_style && st === "dashed") ? "border-peach bg-peach-soft" : "border-line hover:border-line/80"}`}>
+                      <div className="h-4 flex items-center justify-center"><div className="w-full" style={{ borderTop: st === "dashed" ? "2px dashed #232323" : st === "solid" ? "2px solid #232323" : st === "dotted" ? "2px dotted #232323" : "3px double #232323" }} /></div>
+                      <div className="text-[11px] font-bold text-muted mt-1">{st === "dashed" ? "Guiones" : st === "solid" ? "Sólido" : st === "dotted" ? "Puntos" : "Doble"}</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
             </div>
-          </Field>
-          <Field label="ID del canal o grupo" hint="Ej: -1001234567890 o @micanal — el bot debe ser administrador del canal">
-            <div className="relative"><Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9 font-mono text-sm" spellCheck={false} placeholder="-100…" {...f("telegram_chat_id")} /></div>
-          </Field>
-          <button className="btn-soft" disabled={!tgConfigured || tg.busy} onClick={testTelegram}><Send size={16} /> {tg.busy ? "Enviando…" : "Enviar prueba"}</button>
+          </div>
+        </section>
+
+        {/* Telegram */}
+        <section className="card p-5">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h3 className="font-black text-lg flex items-center gap-2"><Send size={20} className="text-peach" /> Telegram · copia de las fotos</h3>
+              <p className="text-sm font-semibold text-muted mt-1">Cada foto que se sube al app (comprobantes de entradas y salidas de stock, fotos de productos) se reenvía a un canal o grupo de Telegram con el detalle del movimiento y quién lo hizo.</p>
+            </div>
+            <span className={`pill shrink-0 ${tg.ok ? "bg-mint-soft text-mint" : tgConfigured ? "bg-peach-soft text-peach" : "bg-line/60 text-muted"}`}>
+              {tg.ok ? <><CheckCircle2 size={14} /> @{tg.ok.bot} → {tg.ok.chat}</> : tgConfigured ? "Configurado" : "Sin configurar"}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <Field label="Token del bot" hint="Lo entrega @BotFather al crear el bot (/newbot)">
+              <div className="relative">
+                <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <input className="input pl-9 pr-10 font-mono text-sm" type={tg.showToken ? "text" : "password"} autoComplete="off" spellCheck={false} placeholder="123456789:AAH…" {...f("telegram_bot_token")} />
+                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted hover:bg-line/60" title={tg.showToken ? "Ocultar" : "Mostrar"} onClick={() => setTg((t) => ({ ...t, showToken: !t.showToken }))}>{tg.showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+              </div>
+            </Field>
+            <Field label="ID del canal o grupo" hint="Ej: -1001234567890 o @micanal — el bot debe ser administrador del canal">
+              <div className="relative"><Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9 font-mono text-sm" spellCheck={false} placeholder="-100…" {...f("telegram_chat_id")} /></div>
+            </Field>
+            <button className="btn-soft" disabled={!tgConfigured || tg.busy} onClick={testTelegram}><Send size={16} /> {tg.busy ? "Enviando…" : "Enviar prueba"}</button>
+          </div>
+          <ol className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs font-semibold text-muted">
+            <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">1.</span> En Telegram abre <span className="text-ink">@BotFather</span>, envía <span className="font-mono text-ink">/newbot</span> y copia el token.</li>
+            <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">2.</span> Crea un canal privado y agrega el bot como <span className="text-ink">administrador</span> (puede publicar mensajes).</li>
+            <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">3.</span> Pega el ID del canal (reenvía un mensaje del canal a <span className="text-ink">@userinfobot</span> para verlo) y pulsa <span className="text-ink">Enviar prueba</span>.</li>
+          </ol>
+        </section>
+
+        <div className="flex justify-end"><button className="btn-primary btn-lg" disabled={busy} onClick={doSave}><Save size={20} /> Guardar ajustes</button></div>
+      </div>
+
+      {/* ---- Right column: sticky preview ---- */}
+      <div className="hidden xl:block w-[340px] shrink-0">
+        <div className="sticky top-4">
+          <div className="bg-white border border-line rounded-xl2 overflow-hidden shadow-soft relative" style={{ minHeight: 400 }}>
+            <div className="flex justify-between items-center bg-cream/90 backdrop-blur-sm px-3 py-2 border-b border-line z-10">
+              <span className="text-[11px] font-extrabold text-muted flex items-center gap-1.5"><ReceiptText size={13} /> Vista previa en tiempo real</span>
+              <span className="text-[10px] font-bold text-muted bg-line/60 px-1.5 py-0.5 rounded">{form.printer_width === 32 ? "58mm" : "80mm"}</span>
+            </div>
+            <div className="p-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
+              <div className="scale-[0.88] origin-top flex flex-col pointer-events-none">
+                <ReceiptView order={previewOrder} settings={form as Settings} />
+              </div>
+            </div>
+          </div>
         </div>
-        <ol className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs font-semibold text-muted">
-          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">1.</span> En Telegram abre <span className="text-ink">@BotFather</span>, envía <span className="font-mono text-ink">/newbot</span> y copia el token.</li>
-          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">2.</span> Crea un canal privado y agrega el bot como <span className="text-ink">administrador</span> (puede publicar mensajes).</li>
-          <li className="rounded-xl bg-line/40 p-3"><span className="text-ink font-extrabold">3.</span> Pega el ID del canal (reenvía un mensaje del canal a <span className="text-ink">@userinfobot</span> para verlo) y pulsa <span className="text-ink">Enviar prueba</span>.</li>
-        </ol>
-      </section>
-      <div className="xl:col-span-2 flex justify-end"><button className="btn-primary btn-lg" disabled={busy} onClick={doSave}><Save size={20} /> Guardar ajustes</button></div>
+      </div>
     </div>
   );
 }

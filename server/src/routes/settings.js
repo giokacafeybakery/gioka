@@ -3,7 +3,7 @@ import { getSettings, setSetting } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
 import { testConnection } from "../telegram.js";
 
-const PUBLIC_KEYS = ["business_name", "business_tagline", "business_address", "business_phone", "currency", "tax_rate", "receipt_footer", "order_prefix", "public_url", "receipt_show_logo", "receipt_show_customer", "receipt_show_notes", "receipt_show_tracking"];
+const PUBLIC_KEYS = ["business_name", "business_tagline", "business_address", "business_phone", "currency", "tax_rate", "receipt_footer", "order_prefix", "public_url", "receipt_show_logo", "receipt_show_customer", "receipt_show_notes", "receipt_show_tracking", "receipt_social", "receipt_wifi", "receipt_show_tagline", "receipt_show_address", "receipt_show_phone", "receipt_show_payment", "receipt_show_change", "receipt_show_items_price", "receipt_show_subtotal", "receipt_show_tax", "receipt_show_order_type", "receipt_show_date", "receipt_show_order_number", "receipt_separator_style", "receipt_font_size", "receipt_header_text", "receipt_show_emoji"];
 const r = Router();
 
 r.get("/", async (req, res) => {
