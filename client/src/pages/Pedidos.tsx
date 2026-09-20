@@ -43,6 +43,7 @@ export default function Pedidos() {
   const [detail, setDetail] = useState<Order | null>(null);
   const [cancel, setCancel] = useState<Order | null>(null);
   const [payFor, setPayFor] = useState<Order | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
   const [, tick] = useState(0);
   const soundRef = useRef(sound);
   soundRef.current = sound;
@@ -63,13 +64,29 @@ export default function Pedidos() {
   });
   useEffect(() => localStorage.setItem("gioka-sound", sound ? "1" : "0"), [sound]);
 
+  const replaceOrder = (updated: Order) => setOrders((current) => current.map((order) => (
+    order.id === updated.id || (!!updated.client_id && order.client_id === updated.client_id) ? updated : order
+  )));
   const setStatus = async (o: Order, status: OrderStatus) => {
-    try { await setOrderStatus(o, status); if (detail?.id === o.id) setDetail(null); }
+    setUpdatingOrderId(o.id);
+    try {
+      const { result } = await setOrderStatus(o, status);
+      replaceOrder(result);
+      if (detail?.id === o.id) setDetail(null);
+    }
     catch (e) { toast.error((e as Error).message); }
+    finally { setUpdatingOrderId(null); }
   };
   const pay = async (o: Order, method: PaymentMethod) => {
-    try { await payOrder(o, method); setPayFor(null); toast.success(`Pedido #${o.daily_number} cobrado`); }
+    setUpdatingOrderId(o.id);
+    try {
+      const { result } = await payOrder(o, method);
+      replaceOrder(result);
+      setPayFor(null);
+      toast.success(`Pedido #${o.daily_number} cobrado`);
+    }
     catch (e) { toast.error((e as Error).message); }
+    finally { setUpdatingOrderId(null); }
   };
 
   const cols: { status: OrderStatus; hint: string }[] = [
@@ -110,9 +127,9 @@ export default function Pedidos() {
           {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
           {o.pending && <span className="pill bg-butter-soft text-[#9a6b00]" title="Guardado en este dispositivo; se enviará al servidor al volver la conexión"><CloudOff size={11} /> Por enviar</span>}
           <div className="flex-1" />
-          {o.status === "pending" && canCook && <button className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
-          {o.status === "preparing" && canCook && <button className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> Listo</button>}
-          {o.status === "ready" && canManage && (o.paid ? <button className="btn btn-sm btn-dark" onClick={() => setStatus(o, "delivered")}>Entregar</button> : <button className="btn btn-sm btn-primary" onClick={() => setPayFor(o)}><Banknote size={16} /> Cobrar</button>)}
+          {o.status === "pending" && canCook && <button disabled={updatingOrderId === o.id} className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
+          {o.status === "preparing" && canCook && <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> {updatingOrderId === o.id ? "Guardando…" : "Listo"}</button>}
+          {o.status === "ready" && canManage && (o.paid ? <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-dark" onClick={() => setStatus(o, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-primary" onClick={() => setPayFor(o)}><Banknote size={16} /> Cobrar</button>)}
         </div>
       </div>
     );
@@ -178,11 +195,11 @@ export default function Pedidos() {
             {isAdmin && detail.status !== "cancelled" && detail.status !== "refunded" && detail.status !== "delivered" && <button className="btn-danger mr-auto" onClick={() => { setCancel(detail); }}><XCircle size={18} /> Cancelar</button>}
             {canManage && <button className="btn-soft" onClick={() => printOrder(detail)}><Printer size={18} /> Ticket</button>}
             <button className="btn-soft" onClick={() => printOrder(detail, { kitchen: true })}><Printer size={18} /> Comanda</button>
-            {detail.status === "preparing" && canCook && <button className="btn-soft" onClick={() => setStatus(detail, "pending")}><Undo2 size={18} /> Volver</button>}
-            {detail.status === "ready" && canCook && <button className="btn-soft" onClick={() => setStatus(detail, "preparing")}><Undo2 size={18} /> Volver</button>}
-            {detail.status === "pending" && canCook && <button className="btn bg-sky text-white" onClick={() => setStatus(detail, "preparing")}>Preparar</button>}
-            {detail.status === "preparing" && canCook && <button className="btn-mint" onClick={() => setStatus(detail, "ready")}>Listo</button>}
-            {detail.status === "ready" && canManage && (detail.paid ? <button className="btn-dark" onClick={() => setStatus(detail, "delivered")}>Entregar</button> : <button className="btn-primary" onClick={() => setPayFor(detail)}>Cobrar</button>)}
+            {detail.status === "preparing" && canCook && <button disabled={updatingOrderId === detail.id} className="btn-soft" onClick={() => setStatus(detail, "pending")}><Undo2 size={18} /> Volver</button>}
+            {detail.status === "ready" && canCook && <button disabled={updatingOrderId === detail.id} className="btn-soft" onClick={() => setStatus(detail, "preparing")}><Undo2 size={18} /> Volver</button>}
+            {detail.status === "pending" && canCook && <button disabled={updatingOrderId === detail.id} className="btn bg-sky text-white" onClick={() => setStatus(detail, "preparing")}>Preparar</button>}
+            {detail.status === "preparing" && canCook && <button disabled={updatingOrderId === detail.id} className="btn-mint" onClick={() => setStatus(detail, "ready")}>{updatingOrderId === detail.id ? "Guardando…" : "Listo"}</button>}
+            {detail.status === "ready" && canManage && (detail.paid ? <button disabled={updatingOrderId === detail.id} className="btn-dark" onClick={() => setStatus(detail, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === detail.id} className="btn-primary" onClick={() => setPayFor(detail)}>Cobrar</button>)}
           </>
         )}>
         {detail && (
@@ -214,7 +231,7 @@ export default function Pedidos() {
       <Modal open={!!payFor} onClose={() => setPayFor(null)} title={payFor ? `Cobrar pedido #${payFor.daily_number}` : ""} subtitle={payFor ? `Total ${money(payFor.total)}` : ""} width="max-w-sm">
         <div className="grid grid-cols-3 gap-2">
           {([["cash", "Efectivo", <Banknote size={22} />], ["qr", "QR", <QrCode size={22} />], ["card", "Tarjeta", <CreditCard size={22} />]] as [PaymentMethod, string, React.ReactNode][]).map(([m, l, ic]) => (
-            <button key={m} onClick={() => payFor && pay(payFor, m)} className="h-20 rounded-2xl border-2 border-line hover:border-peach hover:bg-peach-soft flex flex-col items-center justify-center gap-1 font-extrabold text-sm transition">{ic}{l}</button>
+            <button key={m} disabled={updatingOrderId === payFor?.id} onClick={() => payFor && pay(payFor, m)} className="h-20 rounded-2xl border-2 border-line hover:border-peach hover:bg-peach-soft flex flex-col items-center justify-center gap-1 font-extrabold text-sm transition disabled:opacity-50">{ic}{l}</button>
           ))}
         </div>
       </Modal>
