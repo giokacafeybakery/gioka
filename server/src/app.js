@@ -54,7 +54,8 @@ app.use(express.json({ limit: "12mb" }));
 // ---- Rate limiting global (60 req/min per IP) ----
 app.use("/api", rateLimit({ windowMs: 60_000, max: 60 }));
 
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), { maxAge: "30d", immutable: true }));
+const uploadsDir = process.env.VERCEL ? path.join("/tmp", "gioka-uploads") : path.join(__dirname, "..", "uploads");
+app.use("/uploads", express.static(uploadsDir, { maxAge: "30d", immutable: true }));
 
 // Attach user (if token present) to every request
 app.use(async (req, _res, next) => {

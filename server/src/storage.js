@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { sendPhoto } from "./telegram.js";
 import { background } from "./bg.js";
 
-const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
+const defaultUploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
+// On Vercel (serverless), /var/task is read-only; use /tmp instead.
+const uploadsDir = process.env.VERCEL ? path.join("/tmp", "gioka-uploads") : defaultUploadsDir;
 const BUCKET = process.env.SUPABASE_BUCKET || "gioka";
 const supa = () => {
   const url = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
