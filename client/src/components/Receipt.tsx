@@ -100,7 +100,6 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
             <div className="c" style={{ marginTop: 6 }}>
               <div>Sigue tu pedido:</div>
               <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}><QRCodeSVG value={track} size={96} /></div>
-              <div style={{ fontSize: 10 }}>{track}</div>
             </div>
           )}
           {settings.receipt_wifi && <div className="c" style={{ marginTop: 6 }}>{settings.receipt_wifi}</div>}
