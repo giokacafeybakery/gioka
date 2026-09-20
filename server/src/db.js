@@ -15,15 +15,22 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// Vercel creates multiple short-lived instances. A Supabase shared-pooler URL on :5432 is session mode and
+// reserves one backend connection per client; switch that same endpoint to transaction mode (:6543) in serverless.
+// Keep the original mode for the persistent local/LAN server.
+const databaseUrl = process.env.VERCEL
+  ? process.env.DATABASE_URL.replace(/(\.pooler\.supabase\.com):5432(?=\/|$)/i, "$1:6543")
+  : process.env.DATABASE_URL;
+
 // int8 / numeric come back as strings by default → numbers (COUNT, SUM, AVG)
 pg.types.setTypeParser(20, Number);
 pg.types.setTypeParser(1700, Number);
 
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false },
-  // Serverless (Vercel): muchas instancias pequeñas → pocas conexiones cada una (usar el pooler en modo transacción, puerto 6543).
-  max: Number(process.env.PG_POOL_MAX) || (process.env.VERCEL ? 2 : 8),
+  connectionString: databaseUrl,
+  ssl: /localhost|127\.0\.0\.1/.test(databaseUrl) ? false : { rejectUnauthorized: false },
+  // Supabase recommends exactly one application-side connection per warm serverless instance.
+  max: process.env.VERCEL ? 1 : (Number(process.env.PG_POOL_MAX) || 8),
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000, // sin internet: fallar rápido en vez de colgar la petición
   query_timeout: 12_000,           // conexión ya abierta pero la red se cayó: la consulta no queda colgada para siempre
@@ -33,9 +40,9 @@ pool.on("error", (e) => console.error("Postgres pool:", e.message));
 /** True when the error means "no se puede hablar con la base de datos" (red caída, DNS, Supabase inaccesible). */
 export function isDbOffline(e) {
   if (!e) return false;
-  if (e.code && /^(ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE)$/.test(e.code)) return true;
+  if (e.code && /^(ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE|EMAXCONNSESSION|53300)$/.test(String(e.code))) return true;
   if (e.code && /^(08|57P0)/.test(String(e.code))) return true; // connection_exception / admin_shutdown
-  return /timeout exceeded when trying to connect|Query read timeout|Connection terminated|terminating connection|connection is closed|Client has encountered a connection error/i.test(e.message || "");
+  return /max clients reached|too many connections|timeout exceeded when trying to connect|Query read timeout|Connection terminated|terminating connection|connection is closed|Client has encountered a connection error/i.test(e.message || "");
 }
 /** Quick liveness check used by /api/health (never waits more than `ms`). */
 export async function dbAlive(ms = 3000) {
