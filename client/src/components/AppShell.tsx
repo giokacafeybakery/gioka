@@ -30,8 +30,8 @@ export default function AppShell() {
       api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {});
       toast.warning("Stock bajo", items.map((i) => i.name).slice(0, 3).join(", ") + (items.length > 3 ? "…" : ""));
     },
-    "stock:updated": () => { if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
-    "sync:changed": () => { if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
+    "stock:updated": () => { api.clearCache(); if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
+    "sync:changed": () => { api.clearCache(); if (user?.role !== "admin") return; api.get<LowStock>("/api/inventory/low").then((l) => setLow(l.products.length + l.ingredients.length)).catch(() => {}); },
   }, [user?.role]);
 
   const items: NavItem[] = ([

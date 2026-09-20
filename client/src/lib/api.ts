@@ -78,10 +78,20 @@ async function get<T>(url: string): Promise<T> {
   throw new OfflineError("Sin conexión y sin datos guardados en este dispositivo");
 }
 
+const MEM_CACHE = new Map<string, { t: number; v: unknown }>();
 export const api = {
-  get,
-  post: <T>(url: string, body?: unknown) => request<T>("POST", url, body),
-  put: <T>(url: string, body?: unknown) => request<T>("PUT", url, body),
-  patch: <T>(url: string, body?: unknown) => request<T>("PATCH", url, body),
-  delete: <T>(url: string) => request<T>("DELETE", url),
+  get: async <T>(url: string): Promise<T> => {
+    if (!NO_CACHE.test(url)) {
+      const hit = MEM_CACHE.get(url);
+      if (hit && Date.now() - hit.t < 30_000) return hit.v as T;
+    }
+    const res = await get<T>(url);
+    if (!NO_CACHE.test(url)) MEM_CACHE.set(url, { t: Date.now(), v: res });
+    return res;
+  },
+  post: async <T>(url: string, body?: unknown) => { MEM_CACHE.clear(); return request<T>("POST", url, body); },
+  put: async <T>(url: string, body?: unknown) => { MEM_CACHE.clear(); return request<T>("PUT", url, body); },
+  patch: async <T>(url: string, body?: unknown) => { MEM_CACHE.clear(); return request<T>("PATCH", url, body); },
+  delete: async <T>(url: string) => { MEM_CACHE.clear(); return request<T>("DELETE", url); },
+  clearCache: () => MEM_CACHE.clear(),
 };
