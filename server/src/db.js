@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS ingredients (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  image TEXT,
   unit TEXT NOT NULL DEFAULT 'u',
   stock DOUBLE PRECISION NOT NULL DEFAULT 0,
   min_stock DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -224,6 +225,7 @@ ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DE
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS client_id TEXT;
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS client_id TEXT;
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS image TEXT;
 -- Delivery: dirección y punto de referencia para que el repartidor ubique al cliente con la factura.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_address TEXT NOT NULL DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEFAULT '';

@@ -54,7 +54,7 @@ export const useInventory = create<InvState>()(persist((set, get) => ({
     try {
       const [ings, prods] = await Promise.all([api.get<Ingredient[]>("/api/inventory/ingredients"), api.get<Product[]>("/api/products?all=1")]);
       const items: Item[] = [
-        ...ings.map((i) => ({ key: `ingredient-${i.id}`, type: "ingredient" as const, id: i.id, name: i.name, unit: i.unit, stock: i.stock, min_stock: i.min_stock, cost: i.cost, subtitle: i.supplier || "Insumo", emoji: "📦", image: null, color: "#5fbfe6", usedIn: i.used_in, client_id: i.client_id, pending: i.pending })),
+        ...ings.map((i) => ({ key: `ingredient-${i.id}`, type: "ingredient" as const, id: i.id, name: i.name, unit: i.unit, stock: i.stock, min_stock: i.min_stock, cost: i.cost, subtitle: i.supplier || "Insumo", emoji: "📦", image: i.image, color: "#5fbfe6", usedIn: i.used_in, client_id: i.client_id, pending: i.pending })),
         ...prods.filter((p) => p.track_stock).map((p) => ({ key: `product-${p.id}`, type: "product" as const, id: p.id, name: p.name, unit: "u", stock: p.stock, min_stock: p.min_stock, cost: p.cost, subtitle: p.category_name || "Producto", emoji: p.emoji, image: p.image, color: p.category_color || "#f2915a" })),
       ].sort((a, b) => a.name.localeCompare(b.name, "es"));
       set({ items, loading: false });

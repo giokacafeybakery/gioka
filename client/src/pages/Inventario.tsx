@@ -7,6 +7,7 @@ import { adjustStock, createIngredient } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, num } from "@/lib/format";
 import { StockLog } from "@/components/StockLog";
+import { ImageCropper } from "@/components/ImageCropper";
 import type { Ingredient, Product } from "@/lib/types";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
@@ -29,6 +30,9 @@ export default function Inventario() {
   const [adjQty, setAdjQty] = useState(""); const [adjMode, setAdjMode] = useState<"in" | "out" | "set">("in"); const [adjReason, setAdjReason] = useState("compra");
   const [adjNotes, setAdjNotes] = useState(""); const [adjPhoto, setAdjPhoto] = useState<string | null>(null); const [adjBusy, setAdjBusy] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
+  const ingredientPhotoRef = useRef<HTMLInputElement>(null);
+  const [ingredientCrop, setIngredientCrop] = useState<string | null>(null);
+  const [ingredientBusy, setIngredientBusy] = useState(false);
   const [edit, setEdit] = useState<Partial<Ingredient> | null>(null);
   const [del, setDel] = useState<Ingredient | null>(null);
 
@@ -59,6 +63,11 @@ export default function Inventario() {
     img.onerror = () => { toast.error("No se pudo leer la imagen"); URL.revokeObjectURL(url); };
     img.src = url;
   };
+  const pickIngredientPhoto = (f: File | undefined) => { if (f && edit) setIngredientCrop(URL.createObjectURL(f)); };
+  const closeIngredientCrop = () => {
+    if (ingredientCrop?.startsWith("blob:")) URL.revokeObjectURL(ingredientCrop);
+    setIngredientCrop(null);
+  };
   const doAdjust = async () => {
     if (!adjust || adjQty === "") return;
     if (photoRequired && !adjPhoto) return toast.warning("Adjunta la foto del comprobante");
@@ -73,11 +82,13 @@ export default function Inventario() {
   };
   const saveIng = async () => {
     if (!edit?.name) return toast.warning("Nombre requerido");
+    setIngredientBusy(true);
     try {
       if (edit.id) { await api.put(`/api/inventory/ingredients/${edit.id > 0 ? edit.id : `c_${edit.client_id}`}`, edit); toast.success("Insumo guardado"); }
       else { const { queued } = await createIngredient(edit as Parameters<typeof createIngredient>[0]); toast.success("Insumo guardado", queued ? "Se enviará al volver la conexión" : undefined); }
       setEdit(null); load();
     } catch (e) { toast.error((e as Error).message); }
+    finally { setIngredientBusy(false); }
   };
   const LowBadge = ({ stock, min }: { stock: number; min: number }) => stock <= 0 ? <span className="pill bg-berry text-white">Agotado</span> : stock <= min ? <span className="pill bg-butter-soft text-[#9a6b00]"><AlertTriangle size={11} /> Bajo</span> : <span className="pill bg-mint-soft text-mint-2">OK</span>;
   const Bar = ({ stock, min }: { stock: number; min: number }) => { const pct = Math.max(0, Math.min(100, min > 0 ? (stock / (min * 2)) * 100 : stock > 0 ? 100 : 0)); const c = stock <= 0 ? "bg-berry" : stock <= min ? "bg-butter" : "bg-mint"; return <div className="h-1.5 w-24 rounded-full bg-cream-2 overflow-hidden"><div className={`h-full rounded-full ${c}`} style={{ width: `${pct}%` }} /></div>; };
@@ -88,7 +99,7 @@ export default function Inventario() {
     <div className="flex flex-col h-full min-h-0">
       <PageHeader title="Inventario" subtitle="Insumos, stock de productos y movimientos">
         <Segmented value={tab} onChange={setTab} options={[{ value: "ingredients", label: "Insumos" }, { value: "products", label: "Productos" }, { value: "movements", label: <span className="flex items-center gap-1"><History size={14} /> Movimientos</span> }]} />
-        {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "" })}><Plus size={18} /> Insumo</button>}
+        {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", image: null, unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "" })}><Plus size={18} /> Insumo</button>}
         {!canManage && <span className="pill bg-cream-2 text-ink-3"><Eye size={12} /> Solo lectura</span>}
       </PageHeader>
 
@@ -114,7 +125,7 @@ export default function Inventario() {
               <tbody>
                 {filteredIngs.map((i) => (
                   <tr key={i.id} className={`border-t border-line hover:bg-cream/60 ${i.stock <= i.min_stock ? "bg-berry-soft/30" : ""}`}>
-                    <td className="px-4 py-2.5 font-extrabold">{i.name}<div className="text-[11px] text-muted font-bold">usado en {i.used_in} producto{i.used_in === 1 ? "" : "s"}</div></td>
+                    <td className="px-4 py-2.5"><div className="flex items-center gap-3">{i.image ? <img src={i.image} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-sky-soft text-sky grid place-items-center shrink-0"><Boxes size={19} /></div>}<div className="font-extrabold">{i.name}<div className="text-[11px] text-muted font-bold">usado en {i.used_in} producto{i.used_in === 1 ? "" : "s"}</div></div></div></td>
                     <td className="px-4 py-2.5 font-semibold text-muted">{i.supplier || "—"}</td>
                     <td className="px-4 py-2.5"><div className="font-black">{num(i.stock, 2)} {i.unit}</div><Bar stock={i.stock} min={i.min_stock} /></td>
                     <td className="px-4 py-2.5 font-bold text-muted">{num(i.min_stock, 2)} {i.unit}</td>
@@ -184,9 +195,23 @@ export default function Inventario() {
 
       {/* Ingredient modal */}
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? "Editar insumo" : "Nuevo insumo"} width="max-w-md"
-        footer={<><button className="btn-ghost" onClick={() => setEdit(null)}>Cancelar</button><button className="btn-primary" onClick={saveIng}>Guardar</button></>}>
+        footer={<><button className="btn-ghost" disabled={ingredientBusy} onClick={() => setEdit(null)}>Cancelar</button><button className="btn-primary" disabled={ingredientBusy} onClick={saveIng}>{ingredientBusy ? "Guardando…" : "Guardar"}</button></>}>
         {edit && (
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label">Foto del insumo</label>
+              <input ref={ingredientPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { pickIngredientPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+              {edit.image ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-line p-2.5">
+                  <img src={edit.image} alt={`Foto de ${edit.name || "insumo"}`} className="w-20 h-20 rounded-xl object-cover shrink-0" />
+                  <div className="flex-1 min-w-0"><div className="font-extrabold truncate">Foto seleccionada</div><div className="text-xs text-muted font-semibold mt-0.5">Se guardará y se enviará al Telegram.</div></div>
+                  <div className="flex flex-col gap-1"><button type="button" className="btn btn-sm btn-soft" onClick={() => setIngredientCrop(edit.image!)}>Ajustar</button><button type="button" className="btn btn-sm btn-ghost text-berry" onClick={() => setEdit({ ...edit, image: null })}><X size={14} /> Quitar</button></div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => ingredientPhotoRef.current?.click()} className="w-full h-24 rounded-2xl border-2 border-dashed border-line text-muted hover:bg-cream flex flex-col items-center justify-center gap-1 font-bold text-sm"><Camera size={22} /> Tomar foto o subir imagen</button>
+              )}
+              {edit.image && <button type="button" className="btn-soft btn-sm mt-2" onClick={() => ingredientPhotoRef.current?.click()}><Camera size={15} /> Cambiar foto</button>}
+            </div>
             <Field label="Nombre" className="col-span-2"><input autoFocus className="input" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
             <Field label="Unidad"><select className="input" value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{["u", "kg", "g", "L", "ml", "caja", "paq"].map((u) => <option key={u}>{u}</option>)}</select></Field>
             <Field label="Costo por unidad"><input className="input" type="number" step="any" value={edit.cost ?? 0} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></Field>
@@ -196,6 +221,7 @@ export default function Inventario() {
           </div>
         )}
       </Modal>
+      <ImageCropper open={!!ingredientCrop} src={ingredientCrop} title="Ajustar foto del insumo" onClose={closeIngredientCrop} onDone={(dataUrl) => { setEdit((current) => current && { ...current, image: dataUrl }); closeIngredientCrop(); }} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} danger confirmLabel="Eliminar" title={del ? `¿Eliminar ${del.name}?` : ""} message="Se quitará de todas las recetas que lo usan." onConfirm={async () => { if (!del) return; try { await api.delete(`/api/inventory/ingredients/${del.id}`); toast.success("Insumo eliminado"); load(); } catch (e) { toast.error((e as Error).message); } }} />
     </div>

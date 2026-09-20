@@ -36,16 +36,20 @@ export default function inventoryRoutes() {
     res.json(await all(`SELECT i.*, (SELECT COUNT(*) FROM product_ingredients pi WHERE pi.ingredient_id=i.id) AS used_in FROM ingredients i ORDER BY i.name`));
   });
   r.post("/ingredients", manager, async (req, res) => {
-    const { name, unit = "u", stock = 0, min_stock = 0, cost = 0, supplier = "", photo } = req.body;
+    const { name, image, unit = "u", stock = 0, min_stock = 0, cost = 0, supplier = "", photo } = req.body;
     const cid = clientId(req.body.client_id);
     if (cid) { const dup = await get("SELECT * FROM ingredients WHERE client_id=?", cid); if (dup) return res.json(dup); }
     if (!name) return res.status(400).json({ error: "Nombre requerido" });
     if (req.user.role === "inventario" && Number(stock) !== 0 && !photo) return res.status(400).json({ error: "Adjunta la foto del comprobante del stock inicial" });
+    const imagePath = image
+      ? await saveImage(image, `i-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, { caption: caption(["📦 Nuevo insumo", { b: name }, supplier && `🏪 ${supplier}`, `👤 ${req.user.name}`]) })
+      : null;
+    if (image && !imagePath) return res.status(400).json({ error: "La foto del insumo debe ser JPG, PNG o WebP" });
     const photoPath = Number(stock) !== 0
       ? await savePhoto(photo, caption(["🧾 Stock inicial", { b: name }, fmtQty(Number(stock), unit), supplier && `🏪 ${supplier}`, `👤 ${req.user.name}`]))
       : null;
     const t = cid ? clientTime(req.body.created_at) : now();
-    const x = await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at,client_id) VALUES(?,?,?,?,?,?,?,?)", name, unit, Number(stock), Number(min_stock), Number(cost), supplier, t, cid);
+    const x = await run("INSERT INTO ingredients(name,image,unit,stock,min_stock,cost,supplier,created_at,client_id) VALUES(?,?,?,?,?,?,?,?,?)", name, imagePath, unit, Number(stock), Number(min_stock), Number(cost), supplier, t, cid);
     if (Number(stock) !== 0)
       await run("INSERT INTO stock_movements(item_type,item_id,qty,reason,notes,photo,user_id,created_at,offline) VALUES('ingredient',?,?,?,?,?,?,?,?)", x.lastInsertRowid, Number(stock), "stock inicial", "", photoPath, (cid && id(req.body.user_id)) || req.user.id, t, cid && req.body.offline ? 1 : 0);
     res.json(await get("SELECT * FROM ingredients WHERE id=?", x.lastInsertRowid));
@@ -54,7 +58,14 @@ export default function inventoryRoutes() {
     const i = await findItem("ingredients", req.params.id);
     if (!i) return res.status(404).json({ error: "No existe" });
     const { name = i.name, unit = i.unit, min_stock = i.min_stock, cost = i.cost, supplier = i.supplier } = req.body;
-    await run("UPDATE ingredients SET name=?,unit=?,min_stock=?,cost=?,supplier=? WHERE id=?", name, unit, Number(min_stock), Number(cost), supplier, i.id);
+    let image = i.image;
+    if (req.body.image === null) image = null;
+    else if (typeof req.body.image === "string" && req.body.image.startsWith("data:")) {
+      const saved = await saveImage(req.body.image, `i${i.id}-${Date.now()}`, { caption: caption(["📦 Foto de insumo", { b: name }, supplier && `🏪 ${supplier}`, `👤 ${req.user.name}`]) });
+      if (!saved) return res.status(400).json({ error: "La foto del insumo debe ser JPG, PNG o WebP" });
+      image = saved;
+    }
+    await run("UPDATE ingredients SET name=?,image=?,unit=?,min_stock=?,cost=?,supplier=? WHERE id=?", name, image, unit, Number(min_stock), Number(cost), supplier, i.id);
     res.json(await get("SELECT * FROM ingredients WHERE id=?", i.id));
   });
   r.delete("/ingredients/:id", admin, async (req, res) => {
