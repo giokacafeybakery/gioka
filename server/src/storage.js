@@ -62,6 +62,13 @@ async function store(img, file) {
     if (!r.ok) throw new Error(`Supabase Storage: ${r.status} ${await r.text()}`);
     return `${s.url}/storage/v1/object/public/${BUCKET}/${file}`;
   }
+  
+  if (process.env.VERCEL) {
+    // Vercel serverless functions have ephemeral filesystems.
+    // We cannot serve files from /tmp across requests, so we store them as Base64 in SQLite.
+    return `data:${img.mime};base64,${img.buf.toString("base64")}`;
+  }
+  
   fs.mkdirSync(uploadsDir, { recursive: true });
   fs.writeFileSync(path.join(uploadsDir, file), img.buf);
   return `/uploads/${file}`;
