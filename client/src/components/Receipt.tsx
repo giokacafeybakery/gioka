@@ -36,8 +36,9 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
   const sep = settings.receipt_separator_style || "dashed";
   const sepStyle = sep === "solid" ? "1px solid #000" : sep === "dotted" ? "2px dotted #000" : sep === "double" ? "3px double #000" : "1px dashed #000";
   const fontSize = settings.receipt_font_size === "small" ? 10 : settings.receipt_font_size === "large" ? 14 : 12;
+  const receiptWidth = settings.printer_width === 32 ? "48mm" : "72mm";
   return (
-    <div className="receipt" style={{ fontSize }}>
+    <div className="receipt" style={{ fontSize, width: receiptWidth }}>
       {settings.receipt_show_logo !== false && !kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
       {settings.receipt_header_text && !kitchen && <div className="c b" style={{ marginBottom: 4 }}>{settings.receipt_header_text}</div>}
       <div className="c xl">{settings.business_name}</div>
