@@ -305,6 +305,10 @@ const DEFAULT_SETTINGS = {
   public_url: "",
   telegram_bot_token: "", // bot de @BotFather; con chat id, cada foto del app se reenvía a ese chat/canal
   telegram_chat_id: "",
+  receipt_show_logo: true,
+  receipt_show_customer: true,
+  receipt_show_notes: true,
+  receipt_show_tracking: true,
 };
 
 /** Create tables (idempotent) and seed demo data on an empty database. Called once at startup. */

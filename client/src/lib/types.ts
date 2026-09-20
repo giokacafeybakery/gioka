@@ -42,6 +42,7 @@ export interface Settings {
   receipt_footer: string; printer_mode: "browser" | "network"; printer_host: string; printer_port: number; printer_width: number;
   auto_print: boolean; order_prefix: string; public_url: string;
   telegram_bot_token: string; telegram_chat_id: string;
+  receipt_show_logo?: boolean; receipt_show_customer?: boolean; receipt_show_notes?: boolean; receipt_show_tracking?: boolean;
 }
 
 export interface CashSession {

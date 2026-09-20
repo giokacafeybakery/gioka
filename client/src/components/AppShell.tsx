@@ -66,12 +66,6 @@ export default function AppShell() {
           </NavLink>
         ))}
         <div className="flex-1" />
-        {user?.role === "admin" && (
-          <NavLink to="/app" className="group relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="App móvil de inventario">
-            <Smartphone size={22} />
-            <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">App móvil de inventario</span>
-          </NavLink>
-        )}
         <a href="/pantalla" target="_blank" rel="noreferrer" className="group relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Pantalla de clientes">
           <MonitorPlay size={22} />
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>

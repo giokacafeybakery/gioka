@@ -56,7 +56,6 @@ export default function Profile() {
         )}
         <motion.div variants={rowVariants}>
           <Card className="divide-y divide-black/5">
-            {user?.role === "admin" && <button onClick={() => nav("/admin")} className="w-full flex items-center gap-3 p-4 text-left"><Monitor size={20} className="text-app-muted" /><span className="flex-1 text-[15px] font-semibold">Ir al sistema de escritorio</span><ChevronRight size={18} className="text-black/25" /></button>}
             <button onClick={doLogout} className="w-full flex items-center gap-3 p-4 text-left text-berry"><LogOut size={20} /><span className="flex-1 text-[15px] font-semibold">Cerrar sesión</span></button>
           </Card>
         </motion.div>

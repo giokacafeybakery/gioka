@@ -320,6 +320,15 @@ function SettingsTab() {
           {form.printer_mode === "network" && <div className="col-span-2"><button className="btn-soft btn-sm" onClick={test}><Printer size={15} /> Imprimir página de prueba</button></div>}
         </div>
       </section>
+      <section className="card p-5">
+        <h3 className="font-black text-lg flex items-center gap-2 mb-4"><ClipboardList size={20} className="text-peach" /> Opciones del Ticket</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3">
+          <Toggle checked={form.receipt_show_logo !== false} onChange={(v) => setForm({ ...form, receipt_show_logo: v })} label="Mostrar logotipo (logo superior)" />
+          <Toggle checked={form.receipt_show_customer !== false} onChange={(v) => setForm({ ...form, receipt_show_customer: v })} label="Mostrar datos del cliente" />
+          <Toggle checked={form.receipt_show_notes !== false} onChange={(v) => setForm({ ...form, receipt_show_notes: v })} label="Mostrar notas del pedido" />
+          <Toggle checked={form.receipt_show_tracking !== false} onChange={(v) => setForm({ ...form, receipt_show_tracking: v })} label="Mostrar código QR de seguimiento" />
+        </div>
+      </section>
       <section className="card p-5 xl:col-span-2">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>

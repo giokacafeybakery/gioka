@@ -35,7 +35,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
   const track = settings.public_url ? `${settings.public_url.replace(/\/$/, "")}/seguir/${order.code}` : "";
   return (
     <div className="receipt">
-      {!kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
+      {settings.receipt_show_logo !== false && !kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
       <div className="c xl">{settings.business_name}</div>
       {!kitchen && (
         <>
@@ -47,7 +47,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
       <div className="hr2" />
       <div className="c xl">{kitchen ? "COCINA" : "PEDIDO"} #{order.daily_number}</div>
       <div className="c b">{TYPE[order.type].label.toUpperCase()}{order.table_no ? ` · Mesa ${order.table_no}` : ""}</div>
-      {order.customer_name && <div className="c">Cliente: {order.customer_name}</div>}
+      {settings.receipt_show_customer !== false && order.customer_name && <div className="c">Cliente: {order.customer_name}</div>}
       {order.type === "delivery" ? (
         <div className="box">
           <div className="c xl">ENTREGA A DOMICILIO</div>
@@ -60,7 +60,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
             ? <div className="c b">PAGADO{order.payment_method ? ` · ${PAYMENT[order.payment_method]}` : ""}</div>
             : <div className="c lg">COBRAR AL ENTREGAR: {m(order.total, cur)}</div>}
         </div>
-      ) : order.customer_phone ? <div className="c">Tel: {order.customer_phone}</div> : null}
+      ) : settings.receipt_show_customer !== false && order.customer_phone ? <div className="c">Tel: {order.customer_phone}</div> : null}
       <div className="row"><span>{order.code}</span><span>{d.toLocaleDateString("es")} {d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span></div>
       <div className="hr" />
       {order.items.map((it, i) => (
@@ -90,8 +90,8 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
           )}
           {!order.paid && <div className="c b" style={{ marginTop: 4 }}>*** PENDIENTE DE PAGO ***</div>}
           <div className="hr" />
-          {order.notes && <div>Nota: {order.notes}</div>}
-          {track && (
+          {settings.receipt_show_notes !== false && order.notes && <div>Nota: {order.notes}</div>}
+          {settings.receipt_show_tracking !== false && track && (
             <div className="c" style={{ marginTop: 6 }}>
               <div>Sigue tu pedido:</div>
               <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}><QRCodeSVG value={track} size={96} /></div>

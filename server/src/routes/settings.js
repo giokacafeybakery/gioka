@@ -3,7 +3,7 @@ import { getSettings, setSetting } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
 import { testConnection } from "../telegram.js";
 
-const PUBLIC_KEYS = ["business_name", "business_tagline", "business_address", "business_phone", "currency", "tax_rate", "receipt_footer", "order_prefix", "public_url"];
+const PUBLIC_KEYS = ["business_name", "business_tagline", "business_address", "business_phone", "currency", "tax_rate", "receipt_footer", "order_prefix", "public_url", "receipt_show_logo", "receipt_show_customer", "receipt_show_notes", "receipt_show_tracking"];
 const r = Router();
 
 r.get("/", async (req, res) => {
