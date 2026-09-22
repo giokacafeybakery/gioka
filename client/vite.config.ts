@@ -9,7 +9,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      // Keep the current version running until the operator explicitly accepts
+      // the update. This avoids an unexpected reload in the middle of a sale.
+      registerType: "prompt",
       includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png", "sounds/*.mp3", "anim/**/*.{webp,json}"],
       manifest: {
         name: "Gioka — Café · Heladería · Bakery",
