@@ -27,6 +27,19 @@ registerSW({
 // Offline layer: read cache + operation queue + connectivity probe. Rendering does not wait for it (it resolves in ms).
 void initOffline();
 
+// The PWA is a fixed-size app: block pinch zoom on every browser. iOS ignores user-scalable=no,
+// so multi-touch panning is cancelled too (single-finger scroll keeps working).
+function blockZoom() {
+  const cancel = (e: Event) => e.preventDefault();
+  document.addEventListener("gesturestart", cancel, { passive: false });
+  document.addEventListener("gesturechange", cancel, { passive: false });
+  document.addEventListener("gestureend", cancel, { passive: false });
+  document.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+}
+if (typeof window !== "undefined") blockZoom();
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* Respect "reduce motion" from the phone settings; animations are otherwise tuned per component. */}

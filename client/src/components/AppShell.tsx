@@ -77,7 +77,7 @@ export default function AppShell() {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="md:hidden flex items-center justify-between px-4 h-14 bg-ink text-white">
+      <header className="md:hidden flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] h-[calc(env(safe-area-inset-top,0px)+56px)] bg-ink text-white">
         <Wordmark height={26} color="#FFFDF8" />
         <div className="flex items-center gap-1">
           {!!low && <NavLink to="/inventario" className="relative w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10"><Bell size={20} /><span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-berry text-[10px] font-black grid place-items-center">{low}</span></NavLink>}
