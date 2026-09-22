@@ -91,16 +91,22 @@ body {
 @utility anim-shake { animation: shake .45s cubic-bezier(.36,.07,.19,.97) both; }
 @utility anim-wiggle { animation: wiggle 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
 
-/* ---- Receipt print (80mm thermal, browser mode) ---- */
+/* ---- Receipt print (58/80mm thermal, browser mode) ----
+   The @page size + content width are matched to the configured printer width
+   (Receipt.tsx injects an override) so the browser NEVER scales the page.
+   Fractional scaling is what rasterizes text into broken/faded glyphs while
+   block graphics (QR, logo) survive. */
 @media print {
   body * { visibility: hidden !important; }
   #print-root, #print-root * { visibility: visible !important; }
-  #print-root { position: absolute !important; left: 0; top: 0; width: 72mm; }
-  @page { size: 80mm auto; margin: 3mm; }
+  #print-root { position: absolute !important; left: 0; top: 0; width: auto; }
+  @page { size: 80mm auto; margin: 2mm; }
 }
 #print-root { display: none; background: #fff; }
-@media print { #print-root { display: block !important; } }
-.receipt { font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35; color: #000; width: 72mm; }
+@media print {
+  #print-root { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+.receipt { font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35; color: #000; width: 72mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .receipt .logo { display: block; width: 44mm; margin: 0 auto 4px; }
 .receipt .c { text-align: center; }
 .receipt .b { font-weight: 700; }

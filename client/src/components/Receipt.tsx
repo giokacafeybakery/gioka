@@ -126,5 +126,13 @@ export function PrintHost() {
     return () => clearTimeout(t);
   }, [job, settings]);
   if (!job || !settings) return null;
-  return <div id="print-root"><ReceiptView order={job.order} settings={settings} kitchen={job.kitchen} /></div>;
+  const is32 = (settings.printer_width ?? 42) === 32;
+  const paper = is32 ? "58mm" : "80mm";
+  const content = is32 ? "48mm" : "72mm";
+  return (
+    <>
+      <style>{`@media print{@page{size:${paper} auto;margin:2mm}#print-root{width:${content}!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
+      <div id="print-root"><ReceiptView order={job.order} settings={settings} kitchen={job.kitchen} /></div>
+    </>
+  );
 }
