@@ -57,7 +57,7 @@ export default function inventoryRoutes() {
   r.put("/ingredients/:id", manager, async (req, res) => {
     const i = await findItem("ingredients", req.params.id);
     if (!i) return res.status(404).json({ error: "No existe" });
-    const { name = i.name, unit = i.unit, min_stock = i.min_stock, cost = i.cost, supplier = i.supplier } = req.body;
+    const { name = i.name, unit = i.unit, stock = i.stock, min_stock = i.min_stock, cost = i.cost, supplier = i.supplier } = req.body;
     let image = i.image;
     if (req.body.image === null) image = null;
     else if (typeof req.body.image === "string" && req.body.image.startsWith("data:")) {
@@ -65,7 +65,7 @@ export default function inventoryRoutes() {
       if (!saved) return res.status(400).json({ error: "La foto del insumo debe ser JPG, PNG o WebP" });
       image = saved;
     }
-    await run("UPDATE ingredients SET name=?,image=?,unit=?,min_stock=?,cost=?,supplier=? WHERE id=?", name, image, unit, Number(min_stock), Number(cost), supplier, i.id);
+    await run("UPDATE ingredients SET name=?,image=?,unit=?,stock=?,min_stock=?,cost=?,supplier=? WHERE id=?", name, image, unit, Number(stock), Number(min_stock), Number(cost), supplier, i.id);
     res.json(await get("SELECT * FROM ingredients WHERE id=?", i.id));
   });
   r.delete("/ingredients/:id", admin, async (req, res) => {

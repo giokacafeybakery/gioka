@@ -220,7 +220,7 @@ export default function Inventario() {
             <Field label="Nombre" className="col-span-2"><input autoFocus className="input" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
             <Field label="Unidad"><select className="input" value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{["u", "kg", "g", "L", "ml", "caja", "paq"].map((u) => <option key={u}>{u}</option>)}</select></Field>
             <Field label="Costo por unidad"><input className="input" type="number" step="any" value={edit.cost ?? 0} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></Field>
-            {!edit.id && <Field label="Stock inicial"><input className="input" type="number" step="any" value={edit.stock ?? 0} onChange={(e) => setEdit({ ...edit, stock: Number(e.target.value) })} /></Field>}
+            <Field label="Stock actual"><input className="input" type="number" step="any" value={edit.stock ?? 0} onChange={(e) => setEdit({ ...edit, stock: Number(e.target.value) })} /></Field>
             <Field label="Stock mínimo" hint="Alerta cuando baje de este valor"><input className="input" type="number" step="any" value={edit.min_stock ?? 0} onChange={(e) => setEdit({ ...edit, min_stock: Number(e.target.value) })} /></Field>
             <Field label="Proveedor" className="col-span-2"><input className="input" value={edit.supplier || ""} onChange={(e) => setEdit({ ...edit, supplier: e.target.value })} /></Field>
           </div>
