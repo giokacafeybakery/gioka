@@ -8,6 +8,7 @@ import { useSyncSummary, SyncPanel } from "@/components/SyncStatus";
 import { ROLE } from "@/lib/format";
 import { useInventory } from "../store";
 import { Screen, Card, listVariants, rowVariants } from "../ui";
+import { Modal } from "@/components/ui";
 import { useState } from "react";
 
 export default function Profile() {
@@ -15,11 +16,12 @@ export default function Profile() {
   const user = useAuth((s) => s.user);
   const sync = useSyncSummary();
   const [syncOpen, setSyncOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { items, movements } = useInventory();
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
   const mine = movements.filter((m) => m.user_name === user?.name && m.order_id == null).length;
 
-  const doLogout = async () => { await endSession(); nav("/login", { replace: true }); };
+  const doLogout = async () => { setConfirmOpen(false); await endSession(); nav("/login", { replace: true }); };
 
   return (
     <Screen title="Perfil">
@@ -56,12 +58,16 @@ export default function Profile() {
         )}
         <motion.div variants={rowVariants}>
           <Card className="divide-y divide-black/5">
-            <button onClick={doLogout} className="w-full flex items-center gap-3 p-4 text-left text-berry"><LogOut size={20} /><span className="flex-1 text-[15px] font-semibold">Cerrar sesión</span></button>
+            <button onClick={() => setConfirmOpen(true)} className="w-full flex items-center gap-3 p-4 text-left text-berry"><LogOut size={20} /><span className="flex-1 text-[15px] font-semibold">Cerrar sesión</span></button>
           </Card>
         </motion.div>
         <motion.div variants={rowVariants} className="text-center text-[12px] text-app-muted pt-2">Gioka · Café · Heladería · Bakery</motion.div>
       </motion.div>
       <SyncPanel open={syncOpen} onClose={() => setSyncOpen(false)} />
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="¿Cerrar sesión?" width="max-w-sm"
+        footer={<><button className="btn-ghost" onClick={() => setConfirmOpen(false)}>Cancelar</button><button className="btn-danger" onClick={() => void doLogout()}>Salir</button></>}>
+        <div className="text-[15px] text-ink-3 font-semibold">Debes volver a iniciar sesión con tu correo y contraseña.</div>
+      </Modal>
     </Screen>
   );
 }

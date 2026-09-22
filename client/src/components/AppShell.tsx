@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { ShoppingBag, ChefHat, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell, Smartphone } from "lucide-react";
 import { PandaMark, Wordmark } from "./Logo";
+import { Confirm } from "./ui";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
@@ -18,6 +19,7 @@ export default function AppShell() {
   const nav = useNavigate();
   const load = useSettings((s) => s.load);
   const [low, setLow] = useState(0);
+  const [confirmOut, setConfirmOut] = useState(false);
 
   useEffect(() => { load().catch(() => {}); }, [load]);
   useEffect(() => {
@@ -48,6 +50,11 @@ export default function AppShell() {
     nav("/login");
   };
 
+  const confirmLogout = () => {
+    setConfirmOut(false);
+    void doLogout();
+  };
+
   const link = ({ isActive }: { isActive: boolean }) =>
     `group relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all ${isActive ? "bg-peach text-white shadow-[0_8px_20px_-6px_rgba(242,145,90,0.8)]" : "text-white/55 hover:text-white hover:bg-white/10"}`;
 
@@ -71,7 +78,7 @@ export default function AppShell() {
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>
         </a>
         <SyncButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />
-        <button onClick={doLogout} className="flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Salir">
+        <button onClick={() => setConfirmOut(true)} className="flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Salir">
           <LogOut size={22} />
         </button>
       </aside>
@@ -82,7 +89,7 @@ export default function AppShell() {
         <div className="flex items-center gap-1">
           {!!low && <NavLink to="/inventario" className="relative w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10"><Bell size={20} /><span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-berry text-[10px] font-black grid place-items-center">{low}</span></NavLink>}
           <SyncButton light className="w-10 h-10 rounded-xl hover:bg-white/10" />
-          <button onClick={doLogout} className="w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10" aria-label="Salir"><LogOut size={20} /></button>
+          <button onClick={() => setConfirmOut(true)} className="w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10" aria-label="Salir"><LogOut size={20} /></button>
         </div>
       </header>
 
@@ -100,6 +107,7 @@ export default function AppShell() {
           ))}
         </nav>
       )}
+      <Confirm open={confirmOut} onClose={() => setConfirmOut(false)} onConfirm={confirmLogout} title="¿Cerrar sesión?" message="Debes volver a iniciar sesión con tu correo y contraseña." confirmLabel="Salir" danger />
     </div>
   );
 }
