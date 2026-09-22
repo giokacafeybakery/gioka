@@ -39,7 +39,7 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
   // Thermal drivers commonly reserve a few millimetres on either side even
   // when the selected roll is 58/80 mm. Keep the receipt inside that real
   // printable area so the right-hand column is never clipped.
-  const receiptWidth = settings.printer_width === 32 ? "50mm" : "68mm";
+  const receiptWidth = Number(settings.printer_width) === 32 ? "50mm" : "68mm";
   return (
     <div className="receipt" style={{ fontSize, width: receiptWidth }}>
       {settings.receipt_show_logo !== false && !kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
@@ -129,7 +129,7 @@ export function PrintHost() {
     return () => clearTimeout(t);
   }, [job, settings]);
   if (!job || !settings) return null;
-  const is32 = (settings.printer_width ?? 42) === 32;
+  const is32 = Number(settings.printer_width ?? 42) === 32;
   const paper = is32 ? "58mm" : "80mm";
   const content = is32 ? "50mm" : "68mm";
   return (

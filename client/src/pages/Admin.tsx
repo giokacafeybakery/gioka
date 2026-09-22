@@ -197,7 +197,8 @@ function SettingsTab() {
   const [tg, setTg] = useState<{ busy: boolean; ok?: { bot: string; chat: string }; showToken: boolean }>({ busy: false, showToken: false });
   useEffect(() => { load().then(() => setForm(useSettings.getState().settings)); }, [load]);
   if (!form || !settings) return <Loading />;
-  const f = <K extends keyof Settings>(k: K) => ({ value: (form[k] ?? "") as string | number, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.type === "number" ? Number(e.target.value) : e.target.value }) });
+  const NUMERIC = new Set<keyof Settings>(["printer_width", "printer_port", "tax_rate"]);
+  const f = <K extends keyof Settings>(k: K) => ({ value: (form[k] ?? "") as string | number, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.type === "number" || NUMERIC.has(k) ? Number(e.target.value) : e.target.value }) });
   const doSave = async () => { setBusy(true); try { await save(form); toast.success("Ajustes guardados"); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); } };
   const test = async () => { try { await save(form); await api.post("/api/print/test"); toast.success("Página de prueba enviada"); } catch (e) { toast.error("Impresora", (e as Error).message); } };
   const tgConfigured = !!(form.telegram_bot_token?.trim() && form.telegram_chat_id?.trim());
@@ -386,7 +387,7 @@ function SettingsTab() {
           <div className="bg-white border border-line rounded-xl2 overflow-hidden shadow-soft relative" style={{ minHeight: 400 }}>
             <div className="flex justify-between items-center bg-cream/90 backdrop-blur-sm px-3 py-2 border-b border-line z-10">
               <span className="text-[11px] font-extrabold text-muted flex items-center gap-1.5"><ReceiptText size={13} /> Vista previa en tiempo real</span>
-              <span className="text-[10px] font-bold text-muted bg-line/60 px-1.5 py-0.5 rounded">{form.printer_width === 32 ? "58mm" : "80mm"}</span>
+              <span className="text-[10px] font-bold text-muted bg-line/60 px-1.5 py-0.5 rounded">{Number(form.printer_width) === 32 ? "58mm" : "80mm"}</span>
             </div>
             <div className="p-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
               <div className="scale-[0.88] origin-top flex flex-col pointer-events-none">

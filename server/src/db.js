@@ -286,8 +286,12 @@ export const clientId = (v) => (typeof v === "string" && /^[A-Za-z0-9_-]{8,64}$/
 
 export async function getSettings() {
   const s = {};
+  // Numeric keys must stay numbers: a <select> can store them as text and strict comparisons
+  // (printer_width === 32) would silently keep the receipt at 80 mm.
+  const NUMERIC = new Set(["printer_width", "printer_port", "tax_rate"]);
   for (const r of await all("SELECT key, value FROM settings")) {
-    try { s[r.key] = JSON.parse(r.value); } catch { s[r.key] = r.value; }
+    let v; try { v = JSON.parse(r.value); } catch { v = r.value; }
+    s[r.key] = NUMERIC.has(r.key) ? Number(v) : v;
   }
   return s;
 }
