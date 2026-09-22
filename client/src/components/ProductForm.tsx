@@ -5,11 +5,22 @@ import { api } from "@/lib/api";
 import { toast } from "@/store/toast";
 import { ImageCropper } from "@/components/ImageCropper";
 import { OptionsEditor } from "@/components/OptionsEditor";
-import type { Category, Ingredient, Product } from "@/lib/types";
+import type { Category, Ingredient, Product, RecipeLine } from "@/lib/types";
 
 const EMOJIS = ["☕", "🍵", "🧋", "🥤", "🧃", "🍹", "🍦", "🍨", "🍧", "🍰", "🧁", "🍩", "🍪", "🍫", "🍓", "🍌", "🥐", "🥖", "🥯", "🍞", "🥧", "🥪", "🥑", "🧀", "🍕", "🌮", "🥗", "🍳", "💧", "🫖", "🍽️", "🐼"];
 
-type Draft = Partial<Product> & { image?: string | null };
+/* Unidades alternativas por insumo: la cantidad de la receta se guarda en la unidad base y
+   el formulario permite escribir en la unidad más práctica (g para kg, ml para L, etc.). */
+const RECIPE_UNITS: Record<string, string[]> = { kg: ["g", "kg"], L: ["ml", "L"], g: ["g"], ml: ["ml"], u: ["u"], caja: ["caja"], paq: ["paq"] };
+/** Convierte el valor escrito a la unidad base del insumo (1 g = 0.001 kg, 1 ml = 0.001 L). */
+const toBaseQty = (base: string, disp: string, v: number) => (disp === "g" && base === "kg") || (disp === "ml" && base === "L") ? v / 1000 : v;
+/** Convierte la cantidad base guardada a la unidad mostrada (0.25 kg → 250 g). */
+const fromBaseQty = (base: string, disp: string, v: number) => (disp === "g" && base === "kg") || (disp === "ml" && base === "L") ? v * 1000 : v;
+
+/** Product draft while editing: `recipe` entries may carry `_unit` (the unit the user wrote the qty in). */
+type Draft = Omit<Partial<Product>, "recipe"> & { image?: string | null; recipe?: RecipeDraft[] };
+/** Recipe line while editing: `_unit` is the unit the user wrote the qty in; stripped before saving. */
+type RecipeDraft = RecipeLine & { _unit?: string };
 
 /** Modal to create/edit a product (photo cropper, emoji, price/cost, stock, recipe, sabores/adicionales). */
 export function ProductForm({ product, cats, ings, onClose, onSaved }: {
@@ -22,7 +33,8 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
   const [edit, setEdit] = useState<Draft | null>(product);
   const fileRef = useRef<HTMLInputElement>(null);
   const [crop, setCrop] = useState<string | null>(null);
-  useEffect(() => { setEdit(product); setCrop(null); }, [product]);
+  const [lineUnit, setLineUnit] = useState<Record<number, string>>({});
+  useEffect(() => { setEdit(product); setCrop(null); setLineUnit({}); }, [product]);
 
   if (!product || !edit) return null;
   const closeCrop = () => { if (crop?.startsWith("blob:")) URL.revokeObjectURL(crop); setCrop(null); };
@@ -33,7 +45,8 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
     const broken = options.find((g) => !g.name || !g.choices.length);
     if (broken) return toast.warning(broken.name ? `Agrega al menos una opción en "${broken.name}"` : "Ponle nombre al grupo de opciones");
     try {
-      const body = { ...edit, options };
+      const recipe = (edit.recipe || []).map(({ _unit: _u, ...r }) => r);
+      const body = { ...edit, options, recipe };
       if (edit.id) await api.put(`/api/products/${edit.id}`, body); else await api.post("/api/products", body);
       toast.success("Producto guardado"); onSaved(); onClose();
     } catch (e) { toast.error((e as Error).message); }
@@ -77,17 +90,26 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
             </>)}
             <div className="col-span-2">
               <label className="label">Receta (insumos que descuenta cada venta)</label>
+              <p className="text-[11px] font-semibold text-muted mb-2">Elige la unidad (ej. 250 <b>g</b> de café) — la app convierte y guarda en la unidad del insumo.</p>
               <div className="space-y-2">
-                {(edit.recipe || []).map((r, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <select className="input h-10 flex-1" value={r.ingredient_id} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], ingredient_id: Number(e.target.value) }; setEdit({ ...edit, recipe }); }}>
-                      {ings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}
-                    </select>
-                    <input className="input h-10 w-28" type="number" step="any" min={0} value={r.qty} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], qty: Number(e.target.value) }; setEdit({ ...edit, recipe }); }} />
-                    <button className="btn-icon btn-ghost w-9 h-9 text-berry" onClick={() => setEdit({ ...edit, recipe: (edit.recipe || []).filter((_, j) => j !== i) })}><X size={15} /></button>
-                  </div>
-                ))}
-                <button className="btn-soft btn-sm" disabled={!ings.length} onClick={() => setEdit({ ...edit, recipe: [...(edit.recipe || []), { ingredient_id: ings[0]?.id, qty: 1 }] })}><Plus size={14} /> Agregar insumo</button>
+                {(edit.recipe || []).map((r, i) => {
+                  const base = ings.find((g) => g.id === r.ingredient_id)?.unit || "u";
+                  const units = RECIPE_UNITS[base] || [base];
+                  const du = (r as RecipeDraft)._unit || units[0];
+                  return (
+                    <div key={i} className="flex gap-2 items-center flex-wrap">
+                      <select className="input h-10 min-w-[160px] flex-[2_1_160px]" value={r.ingredient_id} onChange={(e) => { const recipe = [...(edit.recipe || [])]; const n = Number(e.target.value); recipe[i] = { ...recipe[i], ingredient_id: n, _unit: undefined }; setEdit({ ...edit, recipe }); }}>
+                        {ings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}
+                      </select>
+                      <input className="input h-10 w-24 text-right" type="number" step="any" min={0} value={fromBaseQty(base, du, Number(r.qty) || 0)} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], qty: toBaseQty(base, du, Number(e.target.value) || 0) }; setEdit({ ...edit, recipe }); }} />
+                      <select className="input h-10 w-[74px]" value={du} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], _unit: e.target.value }; setEdit({ ...edit, recipe }); }}>
+                        {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                      <button className="btn-icon btn-ghost w-9 h-9 text-berry" onClick={() => setEdit({ ...edit, recipe: (edit.recipe || []).filter((_, j) => j !== i) })}><X size={15} /></button>
+                    </div>
+                  );
+                })}
+                <button className="btn-soft btn-sm" disabled={!ings.length} onClick={() => setEdit({ ...edit, recipe: [...(edit.recipe || []), { ingredient_id: ings[0]?.id, qty: 1, _unit: undefined }] })}><Plus size={14} /> Agregar insumo</button>
               </div>
             </div>
             <div className="col-span-2">
