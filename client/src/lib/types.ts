@@ -4,12 +4,13 @@ export interface User { id: number; name: string; email: string; role: Role; act
 export interface Category { id: number; name: string; emoji: string; color: string; sort: number }
 
 export interface RecipeLine { ingredient_id: number; qty: number; name?: string; unit?: string }
-/** One choice inside an option group; `price` is the extra added to the product price (0 = included). */
-export interface OptionChoice { name: string; price: number }
+/** One choice inside an option group; `price` is the extra added to the product price (0 = included).
+ *  `ingredient_id`/`qty` optionally link it to an ingredient whose stock is discounted when this choice is sold (like the recipe). */
+export interface OptionChoice { name: string; price: number; ingredient_id?: number | null; qty?: number }
 /** Sabores / adicionales: `single` = pick one (flavor, size), `multi` = pick any (toppings). */
 export interface OptionGroup { name: string; type: "single" | "multi"; required: boolean; choices: OptionChoice[] }
-/** A choice the cashier picked for an order line. */
-export interface SelectedOption { group: string; name: string; price: number }
+/** A choice the cashier picked for an order line; may carry the ingredient it consumes. */
+export interface SelectedOption { group: string; name: string; price: number; ingredient_id?: number | null; qty?: number }
 export interface Product {
   id: number; category_id: number | null; name: string; description: string; price: number; cost: number;
   emoji: string; image: string | null; active: boolean; track_stock: boolean; stock: number; min_stock: number; sort: number;

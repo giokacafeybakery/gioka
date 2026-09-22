@@ -41,8 +41,9 @@ const parseProduct = (p) => p && ({ ...p, recipe: parseJson(p.recipe, []), optio
 
 /**
  * Sabores y adicionales: grupos de opciones que el cajero elige al vender el producto.
- *   [{ name: "Sabor", type: "single"|"multi", required: bool, choices: [{ name, price }] }]
+ *   [{ name: "Sabor", type: "single"|"multi", required: bool, choices: [{ name, price, ingredient_id?, qty? }] }]
  * `single` = una sola elección (sabor, tamaño); `multi` = las que quiera (adicionales). `price` es el extra que suma al precio.
+ * `ingredient_id`/`qty` enlazan la opción con un insumo del catálogo cuyo stock se descuenta cuando se vende (como la receta).
  * Se descartan grupos sin nombre o sin opciones válidas, y opciones repetidas dentro del grupo.
  */
 export function normalizeOptions(raw) {
@@ -59,7 +60,11 @@ export function normalizeOptions(raw) {
       if (!cn || seen.has(cn.toLowerCase())) continue;
       seen.add(cn.toLowerCase());
       const price = Math.max(0, +(Number(c && typeof c === "object" ? c.price : 0) || 0).toFixed(2));
-      choices.push({ name: cn, price });
+      const ingredientId = c && typeof c === "object" ? Number(c.ingredient_id) : 0;
+      const qty = c && typeof c === "object" ? Number(c.qty) : 0;
+      const choice = { name: cn, price };
+      if (ingredientId > 0 && Number.isFinite(qty) && qty > 0) { choice.ingredient_id = ingredientId; choice.qty = Math.round(qty * 1000) / 1000; }
+      choices.push(choice);
     }
     if (!choices.length) continue;
     out.push({ name, type: g.type === "multi" ? "multi" : "single", required: !!g.required, choices });

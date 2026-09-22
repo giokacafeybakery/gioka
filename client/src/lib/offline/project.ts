@@ -34,6 +34,7 @@ export function stockDeltas(ops: Op[] = pendingOps()): Map<string, number> {
       if (!p) continue;
       if (p.track_stock) add(`product-${p.id}`, dir * it.qty);
       for (const r of p.recipe || []) add(`ingredient-${r.ingredient_id}`, dir * r.qty * it.qty);
+      for (const opt of it.options || []) if (Number(opt.ingredient_id) > 0 && Number(opt.qty) > 0) add(`ingredient-${opt.ingredient_id}`, dir * Number(opt.qty) * it.qty);
     }
   };
   for (const op of ops) {

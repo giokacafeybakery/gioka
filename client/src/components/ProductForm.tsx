@@ -41,7 +41,10 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
   const pick = (f: File | undefined) => { if (f) setCrop(URL.createObjectURL(f)); };
   const save = async () => {
     if (!edit?.name || edit.price == null) return toast.warning("Nombre y precio son requeridos");
-    const options = (edit.options || []).map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), price: Number(c.price) || 0 })) })).filter((g) => g.name || g.choices.length);
+    const options = (edit.options || []).map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()).map((c) => {
+      const ing = c.ingredient_id ? { ingredient_id: c.ingredient_id, qty: Math.round(Number(c.qty) * 1000) / 1000 } : {};
+      return { name: c.name.trim(), price: Number(c.price) || 0, ...ing };
+    }) })).filter((g) => g.name || g.choices.length);
     const broken = options.find((g) => !g.name || !g.choices.length);
     if (broken) return toast.warning(broken.name ? `Agrega al menos una opción en "${broken.name}"` : "Ponle nombre al grupo de opciones");
     try {
@@ -114,7 +117,7 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
             </div>
             <div className="col-span-2">
               <label className="label">Sabores y adicionales (el cajero los elige al vender)</label>
-              <OptionsEditor value={edit.options || []} onChange={(options) => setEdit({ ...edit, options })} />
+              <OptionsEditor value={edit.options || []} ings={ings} onChange={(options) => setEdit({ ...edit, options })} />
             </div>
           </div>
         </div>

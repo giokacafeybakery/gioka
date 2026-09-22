@@ -14,17 +14,17 @@ export function OptionsPicker({ product, onClose, onAdd }: { product: Product | 
   // Fresh selection for every product; a required single group with one choice starts already picked.
   useEffect(() => {
     if (!product) return;
-    setSel(product.options.flatMap((g) => (g.required && g.type === "single" && g.choices.length === 1 ? [{ group: g.name, name: g.choices[0].name, price: g.choices[0].price }] : [])));
+    setSel(product.options.flatMap((g) => (g.required && g.type === "single" && g.choices.length === 1 ? [{ group: g.name, name: g.choices[0].name, price: g.choices[0].price, ingredient_id: g.choices[0].ingredient_id, qty: g.choices[0].qty }] : [])));
   }, [product]);
 
   const error = useMemo(() => (product ? optionsError(product.options, sel) : null), [product, sel]);
   const unit = product ? +(product.price + optionsExtra(sel)).toFixed(2) : 0;
 
-  const toggle = (group: Product["options"][number], choice: { name: string; price: number }) => {
+  const toggle = (group: Product["options"][number], choice: { name: string; price: number; ingredient_id?: number | null; qty?: number }) => {
     setSel((cur) => {
       const on = cur.some((o) => o.group === group.name && o.name === choice.name);
       const rest = cur.filter((o) => !(o.group === group.name && (group.type === "single" || o.name === choice.name)));
-      return on ? rest : [...rest, { group: group.name, name: choice.name, price: choice.price }];
+      return on ? rest : [...rest, { group: group.name, name: choice.name, price: choice.price, ingredient_id: choice.ingredient_id, qty: choice.qty }];
     });
   };
   const submit = () => { if (!product || error) return; onAdd(sel); };

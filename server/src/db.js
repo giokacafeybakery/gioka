@@ -387,6 +387,15 @@ async function seedCatalog() {
   const MILK = { name: "Leche", type: "single", required: false, choices: choices("Entera", ["Deslactosada", 0.3], ["Almendra", 0.6]) };
   const catId = async (n) => (await get("SELECT id FROM categories WHERE name=?", n)).id;
   const ingId = async (n) => (await get("SELECT id FROM ingredients WHERE name=?", n)).id;
+  // Helados demo con adicionales que descuentan del inventario: cada opción consume su insumo al venderse.
+  const CHOCO = await ingId("Chocolate");
+  const CREMA = await ingId("Crema de leche");
+  const TOPPINGS_REAL = { name: "Adicionales", type: "multi", required: false, choices: [
+    { name: "Chispas", price: 0.5, ingredient_id: CHOCO, qty: 0.02 },
+    { name: "Salsa de chocolate", price: 0.5, ingredient_id: CHOCO, qty: 0.03 },
+    { name: "Crema batida", price: 0.7, ingredient_id: CREMA, qty: 0.04 },
+    { name: "Nueces", price: 0.8 },
+  ] };
   const prods = [
     // name, desc, price, cost, emoji, cat, track, stock, min, recipe, options (sabores / adicionales)
     ["Espresso", "Doble shot de café de origen, intenso y aromático.", 2.5, 0.6, "☕", "Café", 0, 0, 0, [["Café en grano", 0.018]]],
@@ -394,8 +403,8 @@ async function seedCatalog() {
     ["Latte Vainilla", "Suave latte con jarabe de vainilla y arte latte.", 4.2, 1.1, "🍵", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.2], ["Vasos 12oz", 1]]],
     ["Mocha Panda", "Chocolate, espresso y leche con crema batida.", 4.9, 1.4, "🍫", "Café", 0, 0, 0, [["Café en grano", 0.018], ["Leche", 0.18], ["Chocolate", 0.03], ["Vasos 12oz", 1]]],
     ["Cold Brew", "Extracción en frío 18 h, servido con hielo.", 4.0, 0.9, "🧊", "Café", 0, 0, 0, [["Café en grano", 0.025], ["Vasos 12oz", 1]]],
-    ["Helado 1 bola", "Elige tu sabor favorito en cono o vaso.", 2.8, 0.7, "🍦", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.05], ["Crema de leche", 0.03]], [FLAVOR("single"), TOPPINGS]],
-    ["Helado 2 bolas", "Dos sabores artesanales en cono de waffle.", 4.5, 1.2, "🍨", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.1], ["Crema de leche", 0.06]], [FLAVOR("multi"), TOPPINGS]],
+    ["Helado 1 bola", "Elige tu sabor favorito en cono o vaso.", 2.8, 0.7, "🍦", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.05], ["Crema de leche", 0.03]], [FLAVOR("single"), TOPPINGS_REAL]],
+    ["Helado 2 bolas", "Dos sabores artesanales en cono de waffle.", 4.5, 1.2, "🍨", "Helados", 0, 0, 0, [["Conos de waffle", 1], ["Leche", 0.1], ["Crema de leche", 0.06]], [FLAVOR("multi"), TOPPINGS_REAL]],
     ["Sundae Fresa", "Helado de vainilla, fresas frescas y crema.", 5.5, 1.6, "🍓", "Helados", 0, 0, 0, [["Fresas", 0.08], ["Crema de leche", 0.08], ["Leche", 0.1]]],
     ["Banana Split", "Clásico con tres sabores, banana y chocolate.", 6.9, 2.1, "🍌", "Helados", 0, 0, 0, [["Chocolate", 0.03], ["Crema de leche", 0.1], ["Leche", 0.15]]],
     ["Milkshake Oreo", "Batido cremoso con galletas y crema batida.", 5.2, 1.5, "🥤", "Helados", 0, 0, 0, [["Leche", 0.25], ["Crema de leche", 0.05], ["Vasos 12oz", 1]]],

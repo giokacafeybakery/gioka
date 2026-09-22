@@ -59,19 +59,29 @@ export function customerError(type, c) {
  * Resolve the options chosen for an item (sabores / adicionales) against the product's groups.
  * Online the catalogue is authoritative: unknown choices are rejected, required groups must be chosen and a `single`
  * group takes one choice. On an offline replay (`lenient`) the selection the device recorded is kept as is.
- * Returns [{ group, name, price }].
+ * A choice linked to an ingredient (`ingredient_id`/`qty`) keeps that consumption so the sale discounts its stock.
+ * Returns [{ group, name, price, ingredient_id?, qty? }].
  */
 export function pickOptions(product, selected, lenient = false) {
   const groups = Array.isArray(product.options) ? product.options : [];
   const sel = (Array.isArray(selected) ? selected : []).filter((s) => s && typeof s === "object");
   const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
   const out = [];
+  const withConsumption = (s) => {
+    const c = { group: s.group, name: s.name, price: Number(s.price) || 0 };
+    if (Number(s.ingredient_id) > 0 && Number(s.qty) > 0) { c.ingredient_id = Number(s.ingredient_id); c.qty = Math.round(Number(s.qty) * 1000) / 1000; }
+    return c;
+  };
   for (const g of groups) {
     const found = [];
     for (const s of sel.filter((x) => String(x.group || "") === g.name)) {
       const c = g.choices.find((x) => x.name === String(s.name || ""));
-      if (c) { if (!found.some((f) => f.name === c.name)) found.push({ group: g.name, name: c.name, price: Number(c.price) || 0 }); }
-      else if (lenient) found.push({ group: g.name, name: String(s.name || ""), price: Number(s.price) || 0 });
+      if (c) {
+        const o = { group: g.name, name: c.name, price: Number(c.price) || 0 };
+        if (Number(c.ingredient_id) > 0 && Number(c.qty) > 0) { o.ingredient_id = Number(c.ingredient_id); o.qty = Math.round(Number(c.qty) * 1000) / 1000; }
+        if (!found.some((f) => f.name === o.name)) found.push(o);
+      }
+      else if (lenient) found.push(withConsumption(s));
       else throw bad(`"${s.name}" ya no está disponible en ${product.name}`);
     }
     if (!lenient) {
@@ -80,7 +90,7 @@ export function pickOptions(product, selected, lenient = false) {
     }
     out.push(...found);
   }
-  if (lenient) for (const s of sel) if (!groups.some((g) => g.name === String(s.group || ""))) out.push({ group: String(s.group || ""), name: String(s.name || ""), price: Number(s.price) || 0 });
+  if (lenient) for (const s of sel) if (!groups.some((g) => g.name === String(s.group || ""))) out.push(withConsumption(s));
   return out;
 }
 
@@ -113,6 +123,17 @@ async function applyStock(order, direction, userId, at) {
       await run("INSERT INTO stock_movements(item_type,item_id,qty,reason,order_id,user_id,created_at) VALUES('ingredient',?,?,?,?,?,?)", ing.id, delta, reason, order.id, userId, t);
       const ni = await get("SELECT stock,min_stock,name FROM ingredients WHERE id=?", ing.id);
       if (direction < 0 && ni.stock <= ni.min_stock) lows.push({ type: "ingredient", id: ing.id, name: ni.name, stock: ni.stock });
+    }
+    // Adicionales / sabores con consumo de inventario: cada opción elegida descuenta su insumo (como la receta).
+    for (const o of Array.isArray(it.options) ? it.options : []) {
+      const oing = o && Number(o.ingredient_id) > 0 ? await get("SELECT * FROM ingredients WHERE id=?", Number(o.ingredient_id)) : null;
+      if (!oing) continue;
+      const qty = Number(o.qty) || 0;
+      if (qty <= 0) continue;
+      const delta = direction * qty * it.qty;
+      await run("UPDATE ingredients SET stock = stock + ? WHERE id=?", delta, oing.id);
+      await run("INSERT INTO stock_movements(item_type,item_id,qty,reason,order_id,user_id,created_at) VALUES('ingredient',?,?,?,?,?,?)", oing.id, delta, reason, order.id, userId, t);
+      if (direction < 0 && oing.stock + delta <= oing.min_stock) lows.push({ type: "ingredient", id: oing.id, name: oing.name, stock: oing.stock + delta });
     }
   }
   if (lows.length) emit("stock:low", lows);
