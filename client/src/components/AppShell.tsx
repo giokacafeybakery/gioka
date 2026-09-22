@@ -90,14 +90,16 @@ export default function AppShell() {
         <Outlet />
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden flex items-stretch justify-around bg-ink text-white h-16 pb-[env(safe-area-inset-bottom)]">
-        {items.map((i) => (
-          <NavLink key={i.to} to={i.to} className={({ isActive }) => `relative flex flex-col items-center justify-center gap-0.5 flex-1 text-[10px] font-bold ${isActive ? "text-peach" : "text-white/55"}`}>
-            {i.icon}<span>{i.short}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {/* Mobile bottom nav (hidden for the waiter: the POS is their only screen) */}
+      {user?.role !== "mesero" && (
+        <nav className="md:hidden flex items-stretch justify-around bg-ink text-white h-16 pb-[env(safe-area-inset-bottom)]">
+          {items.map((i) => (
+            <NavLink key={i.to} to={i.to} className={({ isActive }) => `relative flex flex-col items-center justify-center gap-0.5 flex-1 text-[10px] font-bold ${isActive ? "text-peach" : "text-white/55"}`}>
+              {i.icon}<span>{i.short}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
