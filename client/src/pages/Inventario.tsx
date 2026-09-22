@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Plus, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Search, PackageOpen, History, Pencil, Trash2, Eye, Camera, X } from "lucide-react";
+import { Boxes, Plus, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Search, History, Pencil, Trash2, Eye, Camera, X } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
-import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Stat, Confirm } from "@/components/ui";
+import { Modal, Field, Segmented, Empty, Loading, Stat, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
 import { adjustStock, createIngredient } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, num } from "@/lib/format";
 import { StockLog } from "@/components/StockLog";
 import { ImageCropper } from "@/components/ImageCropper";
-import { ProductForm } from "@/components/ProductForm";
-import type { Category, Ingredient, Product } from "@/lib/types";
+import type { Ingredient } from "@/lib/types";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 
-type Tab = "ingredients" | "products" | "movements";
+type Tab = "ingredients" | "movements";
 
 const REASONS = ["compra", "ajuste", "merma", "devolución", "producción", "inventario"];
 
@@ -24,12 +23,9 @@ export default function Inventario() {
   const photoRequired = user?.role === "inventario";
   const [tab, setTab] = useState<Tab>("ingredients");
   const [ings, setIngs] = useState<Ingredient[] | null>(null);
-  const [products, setProducts] = useState<Product[] | null>(null);
-  const [cats, setCats] = useState<Category[]>([]);
-  const [newProduct, setNewProduct] = useState<(Partial<Product> & { image?: string | null }) | null>(null);
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
-  const [adjust, setAdjust] = useState<{ type: "product" | "ingredient"; id: number; name: string; unit: string; stock: number } | null>(null);
+  const [adjust, setAdjust] = useState<{ type: "ingredient"; id: number; name: string; unit: string; stock: number } | null>(null);
   const [adjQty, setAdjQty] = useState(""); const [adjMode, setAdjMode] = useState<"in" | "out" | "set">("in"); const [adjReason, setAdjReason] = useState("compra");
   const [adjNotes, setAdjNotes] = useState(""); const [adjPhoto, setAdjPhoto] = useState<string | null>(null); const [adjBusy, setAdjBusy] = useState(false);
   const photoRef = useRef<HTMLInputElement>(null);
@@ -41,20 +37,16 @@ export default function Inventario() {
 
   const load = () => Promise.all([
     api.get<Ingredient[]>("/api/inventory/ingredients").then(setIngs),
-    api.get<Category[]>("/api/categories").then(setCats),
-    api.get<Product[]>("/api/products?all=1").then((p) => setProducts(p.filter((x) => x.track_stock || x.recipe.length))),
   ]).catch((e) => toast.error(e.message));
   useEffect(() => { load(); }, []);
   useSocket({ "stock:updated": () => load(), "order:created": () => load(), "order:updated": () => load(), "sync:changed": () => load() });
 
   const s = q.trim().toLowerCase();
   const lowIngs = (ings || []).filter((i) => i.stock <= i.min_stock);
-  const lowProds = (products || []).filter((p) => p.track_stock && p.stock <= p.min_stock);
   const filteredIngs = useMemo(() => (ings || []).filter((i) => (!s || i.name.toLowerCase().includes(s) || i.supplier.toLowerCase().includes(s)) && (!onlyLow || i.stock <= i.min_stock)), [ings, s, onlyLow]);
-  const filteredProds = useMemo(() => (products || []).filter((p) => p.track_stock && (!s || p.name.toLowerCase().includes(s)) && (!onlyLow || p.stock <= p.min_stock)), [products, s, onlyLow]);
-  const stockValue = (ings || []).reduce((t, i) => t + i.stock * i.cost, 0) + (products || []).filter((p) => p.track_stock).reduce((t, p) => t + p.stock * p.cost, 0);
+  const stockValue = (ings || []).reduce((t, i) => t + i.stock * i.cost, 0);
 
-  const openAdjust = (type: "product" | "ingredient", it: { id: number; name: string; unit?: string; stock: number }) => { setAdjust({ type, id: it.id, name: it.name, unit: it.unit || "u", stock: it.stock }); setAdjQty(""); setAdjMode("in"); setAdjReason("compra"); setAdjNotes(""); setAdjPhoto(null); };
+  const openAdjust = (type: "ingredient", it: { id: number; name: string; unit?: string; stock: number }) => { setAdjust({ type, id: it.id, name: it.name, unit: it.unit || "u", stock: it.stock }); setAdjQty(""); setAdjMode("in"); setAdjReason("compra"); setAdjNotes(""); setAdjPhoto(null); };
   const pickPhoto = (f: File | undefined) => {
     if (!f) return;
     const img = new Image(); const url = URL.createObjectURL(f);
@@ -78,8 +70,8 @@ export default function Inventario() {
     const n = Number(adjQty);
     setAdjBusy(true);
     try {
-      const item = adjust.type === "ingredient" ? ings?.find((i) => i.id === adjust.id) : undefined;
-      const { queued } = await adjustStock({ item_type: adjust.type, item: { id: adjust.id, client_id: item?.client_id, name: adjust.name, unit: adjust.unit, stock: adjust.stock }, qty: adjMode === "out" ? -n : n, set: adjMode === "set", reason: adjReason, notes: adjNotes, photo: adjPhoto });
+      const item = ings?.find((i) => i.id === adjust.id);
+      const { queued } = await adjustStock({ item_type: "ingredient", item: { id: adjust.id, client_id: item?.client_id, name: adjust.name, unit: adjust.unit, stock: adjust.stock }, qty: adjMode === "out" ? -n : n, set: adjMode === "set", reason: adjReason, notes: adjNotes, photo: adjPhoto });
       toast.success("Stock actualizado", queued ? "Guardado en este dispositivo; se enviará al volver la conexión" : adjPhoto ? "Comprobante guardado" : undefined); setAdjust(null); load();
     } catch (e) { toast.error((e as Error).message); }
     finally { setAdjBusy(false); }
@@ -97,22 +89,20 @@ export default function Inventario() {
   const LowBadge = ({ stock, min }: { stock: number; min: number }) => stock <= 0 ? <span className="pill bg-berry text-white">Agotado</span> : stock <= min ? <span className="pill bg-butter-soft text-[#9a6b00]"><AlertTriangle size={11} /> Bajo</span> : <span className="pill bg-mint-soft text-mint-2">OK</span>;
   const Bar = ({ stock, min }: { stock: number; min: number }) => { const pct = Math.max(0, Math.min(100, min > 0 ? (stock / (min * 2)) * 100 : stock > 0 ? 100 : 0)); const c = stock <= 0 ? "bg-berry" : stock <= min ? "bg-butter" : "bg-mint"; return <div className="h-1.5 w-24 rounded-full bg-cream-2 overflow-hidden"><div className={`h-full rounded-full ${c}`} style={{ width: `${pct}%` }} /></div>; };
 
-  if (!ings || !products) return <Loading />;
+  if (!ings) return <Loading />;
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <PageHeader title="Inventario" subtitle="Insumos, stock de productos y movimientos">
-        <Segmented value={tab} onChange={setTab} options={[{ value: "ingredients", label: "Insumos" }, { value: "products", label: "Productos" }, { value: "movements", label: <span className="flex items-center gap-1"><History size={14} /> Movimientos</span> }]} />
+      <PageHeader title="Inventario" subtitle="Insumos y movimientos">
+        <Segmented value={tab} onChange={setTab} options={[{ value: "ingredients", label: "Insumos" }, { value: "movements", label: <span className="flex items-center gap-1"><History size={14} /> Movimientos</span> }]} />
         {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", image: null, unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "" })}><Plus size={18} /> Insumo</button>}
-        {tab === "products" && canManage && <button className="btn-primary" onClick={() => setNewProduct({ name: "", description: "", price: 0, cost: 0, emoji: "🍽️", category_id: cats[0]?.id ?? null, active: true, track_stock: false, stock: 0, min_stock: 5, recipe: [], options: [] })}><Plus size={18} /> Producto</button>}
         {!canManage && <span className="pill bg-cream-2 text-ink-3"><Eye size={12} /> Solo lectura</span>}
       </PageHeader>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-6 space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <Stat label="Insumos" value={ings.length} sub={`${lowIngs.length} con stock bajo`} tone="sky" icon={<Boxes size={22} />} />
-          <Stat label="Productos con stock" value={products.filter((p) => p.track_stock).length} sub={`${lowProds.length} con stock bajo`} tone="lilac" icon={<PackageOpen size={22} />} />
-          <Stat label="Alertas" value={lowIngs.length + lowProds.length} sub="por reponer" tone={lowIngs.length + lowProds.length ? "berry" : "mint"} icon={<AlertTriangle size={22} />} />
+          <Stat label="Alertas" value={lowIngs.length} sub="por reponer" tone={lowIngs.length ? "berry" : "mint"} icon={<AlertTriangle size={22} />} />
           <Stat label="Valor en stock" value={money(stockValue)} sub="a precio de costo" tone="peach" icon={<ArrowDownToLine size={22} />} />
         </div>
 
@@ -146,22 +136,6 @@ export default function Inventario() {
                 ))}
               </tbody>
             </table>
-          </div>
-        ))}
-
-        {tab === "products" && (filteredProds.length === 0 ? <Empty title="Sin productos con control de stock" hint={isAdmin ? "Activa «Controlar stock» en un producto desde Administración." : "El administrador puede activar el control de stock por producto."} /> : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filteredProds.map((p) => (
-              <div key={p.id} className={`card p-3.5 flex items-center gap-3 ${p.stock <= p.min_stock ? "border-berry/40" : ""}`}>
-                <ProductThumb emoji={p.emoji} image={p.image} color={p.category_color} size={56} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-extrabold truncate">{p.name}</div>
-                  <div className="text-xs font-bold text-muted">{p.category_name} · mín. {p.min_stock}</div>
-                  <div className="mt-1.5 flex items-center gap-2"><Bar stock={p.stock} min={p.min_stock} /><LowBadge stock={p.stock} min={p.min_stock} /></div>
-                </div>
-                <div className="text-right"><div className="text-2xl font-black">{num(p.stock)}</div>{canManage && <button className="btn btn-sm btn-soft mt-1" onClick={() => openAdjust("product", p)}>Ajustar</button>}</div>
-              </div>
-            ))}
           </div>
         ))}
 
@@ -234,8 +208,6 @@ export default function Inventario() {
         )}
       </Modal>
       <ImageCropper open={!!ingredientCrop} src={ingredientCrop} title="Ajustar foto del insumo" onClose={closeIngredientCrop} onDone={(dataUrl) => { setEdit((current) => current && { ...current, image: dataUrl }); closeIngredientCrop(); }} />
-
-      <ProductForm product={newProduct} cats={cats} ings={ings || []} onClose={() => setNewProduct(null)} onSaved={load} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} danger confirmLabel="Eliminar" title={del ? `¿Eliminar ${del.name}?` : ""} message="Se quitará de todas las recetas que lo usan." onConfirm={async () => { if (!del) return; try { await api.delete(`/api/inventory/ingredients/${del.id}`); toast.success("Insumo eliminado"); load(); } catch (e) { toast.error((e as Error).message); } }} />
     </div>
