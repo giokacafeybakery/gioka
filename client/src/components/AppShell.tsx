@@ -35,7 +35,7 @@ export default function AppShell() {
   }, [user?.role]);
 
   const items: NavItem[] = ([
-    { to: "/pos", label: "Punto de venta", short: "Vender", icon: <ShoppingBag size={22} />, roles: ["admin", "cajero"] },
+    { to: "/pos", label: "Tomar pedido", short: "Pedido", icon: <ShoppingBag size={22} />, roles: ["admin", "cajero", "mesero"] },
     { to: "/pedidos", label: "Pedidos", short: "Pedidos", icon: <ChefHat size={22} />, roles: ["admin", "cajero", "cocina"] },
     { to: "/caja", label: "Caja", short: "Caja", icon: <Wallet size={22} />, roles: ["admin", "cajero"] },
     { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin"], badge: low },

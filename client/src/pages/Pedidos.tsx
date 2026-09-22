@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, CreditCard, QrCode, MapPin, CloudOff } from "lucide-react";
+import { ShoppingBag, Bike, UtensilsCrossed, Clock, CheckCircle2, Undo2, XCircle, Printer, Volume2, VolumeX, History, Banknote, MapPin, CloudOff } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Empty, Segmented, Confirm } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
+import { CheckoutOrderModal } from "@/components/CheckoutOrderModal";
 import { api } from "@/lib/api";
-import { payOrder, setOrderStatus } from "@/lib/actions";
+import { setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { optionsSummary, itemLabel } from "@/lib/options";
 import { money, STATUS, TYPE, elapsed, time, PAYMENT } from "@/lib/format";
-import type { Order, OrderStatus, OrderType, PaymentMethod } from "@/lib/types";
+import type { Order, OrderStatus, OrderType } from "@/lib/types";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 
@@ -77,17 +78,6 @@ export default function Pedidos() {
     catch (e) { toast.error((e as Error).message); }
     finally { setUpdatingOrderId(null); }
   };
-  const pay = async (o: Order, method: PaymentMethod) => {
-    setUpdatingOrderId(o.id);
-    try {
-      const { result } = await payOrder(o, method);
-      replaceOrder(result);
-      setPayFor(null);
-      toast.success(`Pedido #${o.daily_number} cobrado`);
-    }
-    catch (e) { toast.error((e as Error).message); }
-    finally { setUpdatingOrderId(null); }
-  };
 
   const cols: { status: OrderStatus; hint: string }[] = [
     { status: "pending", hint: "Por preparar" }, { status: "preparing", hint: "En cocina" }, { status: "ready", hint: "Para entregar" },
@@ -129,7 +119,7 @@ export default function Pedidos() {
           <div className="flex-1" />
           {o.status === "pending" && canCook && <button disabled={updatingOrderId === o.id} className="btn btn-sm bg-sky text-white hover:brightness-95" onClick={() => setStatus(o, "preparing")}>Preparar</button>}
           {o.status === "preparing" && canCook && <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-mint" onClick={() => setStatus(o, "ready")}><CheckCircle2 size={16} /> {updatingOrderId === o.id ? "Guardando…" : "Listo"}</button>}
-          {o.status === "ready" && canManage && (o.paid ? <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-dark" onClick={() => setStatus(o, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-primary" onClick={() => setPayFor(o)}><Banknote size={16} /> Cobrar</button>)}
+          {o.status === "ready" && canManage && (o.paid ? <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-dark" onClick={() => setStatus(o, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === o.id} className="btn btn-sm btn-primary" onClick={() => setPayFor(o)}><Banknote size={16} /> Cobrar y entregar</button>)}
         </div>
       </div>
     );
@@ -199,7 +189,7 @@ export default function Pedidos() {
             {detail.status === "ready" && canCook && <button disabled={updatingOrderId === detail.id} className="btn-soft" onClick={() => setStatus(detail, "preparing")}><Undo2 size={18} /> Volver</button>}
             {detail.status === "pending" && canCook && <button disabled={updatingOrderId === detail.id} className="btn bg-sky text-white" onClick={() => setStatus(detail, "preparing")}>Preparar</button>}
             {detail.status === "preparing" && canCook && <button disabled={updatingOrderId === detail.id} className="btn-mint" onClick={() => setStatus(detail, "ready")}>{updatingOrderId === detail.id ? "Guardando…" : "Listo"}</button>}
-            {detail.status === "ready" && canManage && (detail.paid ? <button disabled={updatingOrderId === detail.id} className="btn-dark" onClick={() => setStatus(detail, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === detail.id} className="btn-primary" onClick={() => setPayFor(detail)}>Cobrar</button>)}
+            {detail.status === "ready" && canManage && (detail.paid ? <button disabled={updatingOrderId === detail.id} className="btn-dark" onClick={() => setStatus(detail, "delivered")}>Entregar</button> : <button disabled={updatingOrderId === detail.id} className="btn-primary" onClick={() => setPayFor(detail)}>Cobrar y entregar</button>)}
           </>
         )}>
         {detail && (
@@ -228,13 +218,7 @@ export default function Pedidos() {
         )}
       </Modal>
 
-      <Modal open={!!payFor} onClose={() => setPayFor(null)} title={payFor ? `Cobrar pedido #${payFor.daily_number}` : ""} subtitle={payFor ? `Total ${money(payFor.total)}` : ""} width="max-w-sm">
-        <div className="grid grid-cols-3 gap-2">
-          {([["cash", "Efectivo", <Banknote size={22} />], ["qr", "QR", <QrCode size={22} />], ["card", "Tarjeta", <CreditCard size={22} />]] as [PaymentMethod, string, React.ReactNode][]).map(([m, l, ic]) => (
-            <button key={m} disabled={updatingOrderId === payFor?.id} onClick={() => payFor && pay(payFor, m)} className="h-20 rounded-2xl border-2 border-line hover:border-peach hover:bg-peach-soft flex flex-col items-center justify-center gap-1 font-extrabold text-sm transition disabled:opacity-50">{ic}{l}</button>
-          ))}
-        </div>
-      </Modal>
+      <CheckoutOrderModal order={payFor} onClose={() => setPayFor(null)} onDone={(updated) => { replaceOrder(updated); setDetail(null); }} />
 
       <Confirm open={!!cancel} onClose={() => setCancel(null)} danger confirmLabel="Cancelar pedido" title={cancel ? `¿Cancelar el pedido #${cancel.daily_number}?` : ""} message="Se devolverá el stock de los productos. Esta acción no se puede deshacer." onConfirm={() => cancel && setStatus(cancel, "cancelled")} />
     </div>

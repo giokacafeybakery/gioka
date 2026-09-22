@@ -13,6 +13,7 @@ const URLS: Record<Role, string[]> = {
   cajero: ["/api/settings", "/api/categories", "/api/products", "/api/orders", "/api/orders?active=1", "/api/cash/current", "/api/cash/history"],
   cocina: ["/api/settings", "/api/orders"],
   inventario: ["/api/settings", "/api/inventory/ingredients", "/api/products?all=1", "/api/inventory/movements?limit=200"],
+  mesero: ["/api/settings", "/api/categories", "/api/products", "/api/orders?active=1"],
 };
 
 let running = false;

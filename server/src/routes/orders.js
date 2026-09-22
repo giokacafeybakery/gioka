@@ -18,15 +18,15 @@ const id = (v) => Number(v) || 0;
 /** Orders are addressed by numeric id or, for ones created offline, by "c_<client_id>". */
 export async function loadOrder(ref) {
   const o = typeof ref === "string" && ref.startsWith("c_")
-    ? await get("SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.client_id=?", ref.slice(2))
-    : await get("SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.id=?", id(ref));
+    ? await get("SELECT o.*, u.name AS user_name, u.role AS user_role FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.client_id=?", ref.slice(2))
+    : await get("SELECT o.*, u.name AS user_name, u.role AS user_role FROM orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.id=?", id(ref));
   if (!o) return null;
   o.items = await all("SELECT * FROM order_items WHERE order_id=? ORDER BY id", o.id);
   o.paid = !!o.paid; o.offline = !!o.offline;
   return o;
 }
 export async function loadOrders(where = "", params = [], { limit = 50, offset = 0 } = {}) {
-  const rows = await all(`SELECT o.*, u.name AS user_name FROM orders o LEFT JOIN users u ON u.id=o.user_id ${where} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`, ...params, limit, offset);
+  const rows = await all(`SELECT o.*, u.name AS user_name, u.role AS user_role FROM orders o LEFT JOIN users u ON u.id=o.user_id ${where} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`, ...params, limit, offset);
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
   const items = await all(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ...ids);
@@ -166,11 +166,12 @@ export default function ordersRoutes() {
     res.json(rows.map(publicView));
   });
 
-  r.use(requireAuth, requireRole("admin", "cajero", "cocina"));
+  r.use(requireAuth, requireRole("admin", "cajero", "cocina", "mesero"));
 
   r.get("/", async (req, res) => {
     const { status, date, active } = req.query;
     const conds = [], params = [];
+    if (req.user.role === "mesero") { conds.push("o.user_id=?"); params.push(req.user.id); }
     if (status) { conds.push(`o.status IN (${status.split(",").map(() => "?").join(",")})`); params.push(...status.split(",")); }
     if (active) conds.push("o.status IN ('pending','preparing','ready')");
     if (date) {
@@ -186,21 +187,26 @@ export default function ordersRoutes() {
 
   r.get("/:id", async (req, res) => {
     const o = await loadOrder(req.params.id);
+    if (o && req.user.role === "mesero" && o.user_id !== req.user.id) return res.status(403).json({ error: "Sin permisos" });
     o ? res.json(o) : res.status(404).json({ error: "No existe" });
   });
 
   r.post("/", async (req, res) => {
     const b = req.body;
     const settings = await getSettings();
-    if (!["admin", "cajero"].includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
+    if (!["admin", "cajero", "mesero"].includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
     // Idempotent: the same operation sent twice (retry after a lost response, offline replay) returns the existing order.
     const cid = clientId(b.client_id);
     if (cid) { const dup = await loadOrder("c_" + cid); if (dup) return res.json(dup); }
     // Offline replay: the sale already happened on the device, so it is recorded even if the register is now closed or stock ran out.
     const replay = !!(cid && b.offline);
+    const replayUserId = id(b.user_id);
+    const mayReplayAsUser = replay && replayUserId && (req.user.role === "admin" || replayUserId === req.user.id);
+    const creator = mayReplayAsUser ? await get("SELECT id,role FROM users WHERE id=?", replayUserId) : req.user;
+    const waiterOrder = creator?.role === "mesero";
     const t = replay ? clientTime(b.created_at) : now();
-    const session = replay ? await sessionAt(t) : await openSession();
-    if (!session && !replay) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para poder vender." });
+    const session = waiterOrder ? null : (replay ? await sessionAt(t) : await openSession());
+    if (!waiterOrder && !session && !replay) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para poder vender." });
     if (!Array.isArray(b.items) || !b.items.length) return res.status(400).json({ error: "El pedido está vacío" });
     if (!["takeaway", "delivery", "dinein"].includes(b.type)) return res.status(400).json({ error: "Tipo de pedido inválido" });
     const custErr = customerError(b.type, b);
@@ -220,10 +226,10 @@ export default function ordersRoutes() {
       items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || ""), options });
     }
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const discount = Math.min(subtotal, Math.max(0, Number(b.discount || 0)));
+    const discount = waiterOrder ? 0 : Math.min(subtotal, Math.max(0, Number(b.discount || 0)));
     const tax = +(((subtotal - discount) * (Number(settings.tax_rate) || 0)) / 100).toFixed(2);
     const total = +(subtotal - discount + tax).toFixed(2);
-    const paid = !!b.payment_method;
+    const paid = !waiterOrder && !!b.payment_method;
 
     const orderId = await transaction(async () => {
       const day = localDayBounds(t);
@@ -237,9 +243,9 @@ export default function ordersRoutes() {
          VALUES(?,?,?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         codeOk ? b.code : await genCode(settings.order_prefix || "G"), daily, b.type, String(b.customer_name || "").trim(), String(b.customer_phone || "").trim(), String(b.table_no || "").trim(),
         b.type === "delivery" ? String(b.customer_address || "").trim() : "", b.type === "delivery" ? String(b.customer_reference || "").trim() : "",
-        b.payment_method || null, paid ? 1 : 0, subtotal, discount, tax, total,
-        b.payment_method === "cash" && b.cash_received != null ? Number(b.cash_received) : null,
-        String(b.notes || ""), (replay && id(b.user_id)) || req.user.id, session ? session.id : null, t, t, paid ? t : null, cid, replay ? 1 : 0,
+        paid ? b.payment_method : null, paid ? 1 : 0, subtotal, discount, tax, total,
+        paid && b.payment_method === "cash" && b.cash_received != null ? Number(b.cash_received) : null,
+        String(b.notes || ""), creator?.id || req.user.id, session ? session.id : null, t, t, paid ? t : null, cid, replay ? 1 : 0,
       );
       const oid = x.lastInsertRowid;
       for (const it of items)
@@ -249,7 +255,39 @@ export default function ordersRoutes() {
     });
     const order = await loadOrder(orderId);
     emit("order:created", order);
-    if (settings.auto_print && !replay) { networkPrint(order, settings, false); networkPrint(order, settings, true); }
+    if (settings.auto_print && !replay) {
+      if (!waiterOrder) networkPrint(order, settings, false);
+      networkPrint(order, settings, true);
+    }
+    res.json(order);
+  });
+
+  // Cashier/admin collects an unpaid ready order and hands it over atomically.
+  r.post("/:id/checkout", async (req, res) => {
+    if (!["admin", "cajero"].includes(req.user.role)) return res.status(403).json({ error: "Solo caja o administración puede cobrar y entregar" });
+    const o = await loadOrder(req.params.id);
+    if (!o) return res.status(404).json({ error: "No existe" });
+    if (o.status !== "ready") return res.status(400).json({ error: "El pedido aún no está listo" });
+    if (o.paid) return res.status(400).json({ error: "El pedido ya está pagado" });
+    const customerName = String(req.body.customer_name || "").trim();
+    const { payment_method } = req.body;
+    const cashReceived = Number(req.body.cash_received);
+    if (!customerName) return res.status(400).json({ error: "Indica el nombre del cliente" });
+    if (!["cash", "card", "qr"].includes(payment_method)) return res.status(400).json({ error: "Método inválido" });
+    if (payment_method === "cash" && (!Number.isFinite(cashReceived) || cashReceived < o.total)) return res.status(400).json({ error: "El monto recibido es menor al total" });
+    const session = await openSession();
+    if (!session) return res.status(409).json({ error: "La caja está cerrada. Abre la caja para cobrar." });
+    const t = now();
+    await transaction(async () => {
+      const result = await run(
+        "UPDATE orders SET customer_name=?, payment_method=?, paid=1, paid_at=?, cash_received=?, cash_session_id=?, status='delivered', delivered_at=?, updated_at=? WHERE id=? AND paid=0 AND status='ready'",
+        customerName, payment_method, t, payment_method === "cash" ? cashReceived : null, session.id, t, t, o.id,
+      );
+      if (!result.changes) throw Object.assign(new Error("El pedido ya fue procesado"), { status: 409 });
+    });
+    const order = await loadOrder(o.id);
+    emit("order:updated", order);
+    await networkPrint(order, await getSettings(), false);
     res.json(order);
   });
 
@@ -276,6 +314,8 @@ export default function ordersRoutes() {
     if (!o) return res.status(404).json({ error: "No existe" });
     const { status } = req.body;
     if (!["pending", "preparing", "ready", "delivered", "cancelled", "refunded"].includes(status)) return res.status(400).json({ error: "Estado inválido" });
+    if (req.user.role === "mesero") return res.status(403).json({ error: "El mesero solo puede crear pedidos" });
+    if (status === "delivered" && !o.paid) return res.status(400).json({ error: "Cobra el pedido antes de entregarlo" });
     // Who may move an order: cocina drives the kitchen flow, cajero only hands it over, admin does everything.
     if (req.user.role === "cajero" && status !== "delivered") return res.status(403).json({ error: "El cajero solo puede marcar el pedido como entregado" });
     if (req.user.role === "cocina" && ["delivered", "cancelled"].includes(status)) return res.status(403).json({ error: "Sin permisos" });

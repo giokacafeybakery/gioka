@@ -109,11 +109,16 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario')),
+  role TEXT NOT NULL CHECK(role IN ('admin','cajero','cocina','inventario','mesero')),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email));
+-- Add the waiter role to databases created before this version.
+DO $$ BEGIN
+  ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+  ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin','cajero','cocina','inventario','mesero'));
+END $$;
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -348,6 +353,7 @@ export async function initDb() {
       ["Cajero", "cajero@gioka.com", "cajero123", "cajero"],
       ["Cocina", "cocina@gioka.com", "cocina123", "cocina"],
       ["Inventario", "inventario@gioka.com", "inventario123", "inventario"],
+      ["Mesero", "mesero@gioka.com", "mesero123", "mesero"],
     ]) await run("INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)", name, email, hashPassword(pass), role, t);
   }
   if (!(await get("SELECT 1 FROM categories LIMIT 1"))) await transaction(() => seedCatalog());

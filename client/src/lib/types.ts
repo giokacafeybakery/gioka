@@ -1,4 +1,4 @@
-export type Role = "admin" | "cajero" | "cocina" | "inventario";
+export type Role = "admin" | "cajero" | "cocina" | "inventario" | "mesero";
 export interface User { id: number; name: string; email: string; role: Role; active?: boolean; created_at?: string }
 
 export interface Category { id: number; name: string; emoji: string; color: string; sort: number }
@@ -29,7 +29,7 @@ export interface Order {
   id: number; code: string; daily_number: number; type: OrderType; customer_name: string; customer_phone: string; table_no: string;
   customer_address: string; customer_reference: string;
   status: OrderStatus; payment_method: PaymentMethod | null; paid: boolean; subtotal: number; discount: number; tax: number; total: number;
-  cash_received: number | null; notes: string; user_id: number; user_name?: string; created_at: string; updated_at: string;
+  cash_received: number | null; notes: string; user_id: number; user_name?: string; user_role?: Role; created_at: string; updated_at: string;
   paid_at: string | null; ready_at: string | null; delivered_at: string | null; items: OrderItem[];
   refund_method: string | null; refund_amount: number | null; refunded_at: string | null; refund_reason?: string | null;
 }

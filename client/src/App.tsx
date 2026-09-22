@@ -49,11 +49,15 @@ export default function App() {
           <Route path="/app/*" element={<Suspense fallback={<Fallback app />}><MobileApp /></Suspense>} />
           <Route element={<Guard />}>
             <Route element={<AppShell />}>
-              <Route element={<Guard roles={["admin", "cajero"]} />}>
+              <Route element={<Guard roles={["admin", "cajero", "mesero"]} />}>
                 <Route path="/pos" element={<Pos />} />
+              </Route>
+              <Route element={<Guard roles={["admin", "cajero"]} />}>
                 <Route path="/caja" element={<Caja />} />
               </Route>
-              <Route path="/pedidos" element={<Pedidos />} />
+              <Route element={<Guard roles={["admin", "cajero", "cocina"]} />}>
+                <Route path="/pedidos" element={<Pedidos />} />
+              </Route>
               <Route element={<Guard roles={["admin"]} />}>
                 <Route path="/inventario" element={<Inventario />} />
               </Route>

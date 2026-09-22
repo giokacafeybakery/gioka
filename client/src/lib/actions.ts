@@ -87,25 +87,25 @@ export async function createOrder(input: NewOrder): Promise<Done<Order>> {
     const p = input.products.find((x) => x.id === l.product.id);
     if (p && p.track_stock && p.stock < l.qty) throw new ApiError(400, `Stock insuficiente de ${p.name} (quedan ${p.stock})`);
   }
-  if (!canDirect() && !useCash.getState().session) throw new ApiError(409, "La caja está cerrada. Abre la caja para poder vender.");
+  if (user.role !== "mesero" && !canDirect() && !useCash.getState().session) throw new ApiError(409, "La caja está cerrada. Abre la caja para poder vender.");
 
   const totals = cartTotals(input.lines, input.discount, settings?.tax_rate || 0);
   const at = nowISO();
   const id = uuid();
-  const paid = !!input.payment_method;
+  const paid = user.role !== "mesero" && !!input.payment_method;
   // Unit price includes the extras of the chosen sabores/adicionales; the selection travels with the item (KDS, ticket).
   const items = input.lines.map((l) => ({ product_id: l.product.id, name: l.product.name, emoji: l.product.emoji, price: lineUnitPrice(l), qty: l.qty, notes: l.notes, options: l.options || [] }));
   const cash_received = paid && input.payment_method === "cash" && input.cash_received != null ? input.cash_received : null;
   const local = {
     id: -Date.now(), client_id: id, code: genCode(settings?.order_prefix || "G"), daily_number: nextDailyNumber(), type: input.type,
     customer_name: input.customer_name.trim(), customer_phone: input.customer_phone.trim(), table_no: input.table_no, ...(input.extra || {}),
-    status: "pending" as OrderStatus, payment_method: input.payment_method, paid, subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total,
-    cash_received, notes: input.notes, user_id: user.id, user_name: user.name, created_at: at, updated_at: at, paid_at: paid ? at : null, ready_at: null, delivered_at: null,
+    status: "pending" as OrderStatus, payment_method: paid ? input.payment_method : null, paid, subtotal: totals.subtotal, discount: totals.discount, tax: totals.tax, total: totals.total,
+    cash_received, notes: input.notes, user_id: user.id, user_name: user.name, user_role: user.role, created_at: at, updated_at: at, paid_at: paid ? at : null, ready_at: null, delivered_at: null,
     items, offline: true, pending: true,
   } as Order;
   const body = {
     type: input.type, customer_name: input.customer_name, customer_phone: input.customer_phone, table_no: input.table_no, ...(input.extra || {}), notes: input.notes, discount: input.discount,
-    payment_method: input.payment_method, cash_received, items: items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price, options: i.options })),
+    payment_method: paid ? input.payment_method : null, cash_received, items: items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price, options: i.options })),
   };
   return perform<Order>({ id, kind: "order.create", at, user: { id: user.id, name: user.name }, label: `Pedido #${local.daily_number} · ${money(local.total)}`, body, local }, local,
     (o) => { bus.emit("order:created", o); bus.emit("stock:updated", { item_type: "product", item: null }); });
@@ -119,6 +119,13 @@ export async function payOrder(order: Order, payment_method: PaymentMethod, cash
   const local: Order = { ...order, paid: true, payment_method, cash_received: payment_method === "cash" ? cash_received : null, paid_at: at, updated_at: at, pending: true };
   return perform<Order>({ id: uuid(), kind: "order.pay", at, user: { id: user.id, name: user.name }, label: `Cobro pedido #${order.daily_number} · ${money(order.total)}`, target: refOf(order), payment_method, cash_received: local.cash_received }, local,
     (o) => bus.emit("order:updated", o));
+}
+
+/** Cashier/admin closes an unpaid ready order in one server transaction. */
+export async function checkoutOrder(order: Order, customer_name: string, payment_method: PaymentMethod, cash_received: number | null): Promise<Order> {
+  const user = me();
+  if (!["admin", "cajero"].includes(user.role)) throw new ApiError(403, "Solo caja o administración puede entregar y cobrar");
+  return api.post<Order>(`/api/orders/${order.id}/checkout`, { customer_name: customer_name.trim(), payment_method, cash_received });
 }
 
 export async function setOrderStatus(order: Order, status: OrderStatus): Promise<Done<Order>> {

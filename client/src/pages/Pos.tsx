@@ -7,8 +7,8 @@ import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
 import { createOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
-import { money, greeting, STATUS, TYPE, elapsed } from "@/lib/format";
-import type { Category, Order, OrderStatus, OrderType, PaymentMethod, Product } from "@/lib/types";
+import { money, greeting, TYPE, elapsed } from "@/lib/format";
+import type { Category, Order, OrderType, PaymentMethod, Product } from "@/lib/types";
 import { useCart, cartTotals, customerError, lineUnitPrice } from "@/store/cart";
 import { OptionsPicker } from "@/components/OptionsPicker";
 import { optionsSummary, itemLabel } from "@/lib/options";
@@ -16,14 +16,12 @@ import { useSettings } from "@/store/settings";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 import { OpenCashModal, useCashSession, CashClosedNotice } from "@/components/OpenCash";
+import { CheckoutOrderModal } from "@/components/CheckoutOrderModal";
 
 const TYPE_ICON: Record<OrderType, React.ReactNode> = { takeaway: <ShoppingBag size={16} />, delivery: <Bike size={16} />, dinein: <UtensilsCrossed size={16} /> };
-const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
-  pending: { to: "preparing", label: "Preparar" }, preparing: { to: "ready", label: "Listo" }, ready: { to: "delivered", label: "Entregar" },
-};
-
 export default function Pos() {
   const user = useAuth((s) => s.user);
+  const isWaiter = user?.role === "mesero";
   const settings = useSettings((s) => s.settings);
   const cart = useCart();
   const [cats, setCats] = useState<Category[]>([]);
@@ -40,10 +38,11 @@ export default function Pos() {
   const [showDiscount, setShowDiscount] = useState(false);
   const [mobileCart, setMobileCart] = useState(false);
   const [openCash, setOpenCash] = useState(false);
+  const [checkoutFor, setCheckoutFor] = useState<Order | null>(null);
   const cash = useCashSession();
 
   const loadProducts = () => api.get<Product[]>("/api/products").then(setProducts);
-  const loadActive = () => api.get<Order[]>("/api/orders?active=1").then(setActive);
+  const loadActive = () => isWaiter ? Promise.resolve() : api.get<Order[]>("/api/orders?active=1").then(setActive);
   useEffect(() => { api.get<Category[]>("/api/categories").then(setCats); loadProducts(); loadActive(); }, []);
   useSocket({
     "order:created": () => loadActive(),
@@ -57,8 +56,10 @@ export default function Pos() {
     const s = q.trim().toLowerCase();
     return (products || []).filter((p) => (cat === "all" || p.category_id === cat) && (!s || p.name.toLowerCase().includes(s) || p.description.toLowerCase().includes(s)));
   }, [products, cat, q]);
+  const readyOrders = active.filter((o) => o.status === "ready");
 
-  const totals = cartTotals(cart.lines, cart.discount, settings?.tax_rate || 0);
+  const effectiveDiscount = isWaiter ? 0 : cart.discount;
+  const totals = cartTotals(cart.lines, effectiveDiscount, settings?.tax_rate || 0);
   // A product can be in the cart several times with different sabores/adicionales; the card shows the sum.
   const qtyOf = (id: number) => cart.lines.filter((l) => l.product.id === id).reduce((s, l) => s + l.qty, 0);
   // Products with options open the picker; the rest go straight in. "−" on the card takes one unit from the last line of that product.
@@ -67,6 +68,7 @@ export default function Pos() {
   const change = payment === "cash" && cashReceived ? Number(cashReceived) - totals.total : 0;
 
   const submit = async (payNow: boolean) => {
+    if (isWaiter) payNow = false;
     if (!cart.lines.length) return toast.warning("El pedido está vacío");
     const missing = customerError(cart.type, cart);
     if (missing) { setMobileCart(true); return toast.warning(missing); }
@@ -75,22 +77,26 @@ export default function Pos() {
     try {
       const { result: order, queued } = await createOrder({
         lines: cart.lines, type: cart.type, customer_name: cart.customerName.trim(), customer_phone: cart.customerPhone.trim(), table_no: cart.tableNo.trim(),
-        extra: { customer_address: cart.address.trim(), customer_reference: cart.reference.trim() }, notes: cart.notes, discount: cart.discount,
+        extra: { customer_address: cart.address.trim(), customer_reference: cart.reference.trim() }, notes: cart.notes, discount: effectiveDiscount,
         payment_method: payNow ? payment : null, cash_received: payNow && payment === "cash" && cashReceived ? Number(cashReceived) : null,
         products: products || [],
       });
       cart.clear(); setCashReceived(""); setMobileCart(false);
       setDone(order);
       if (queued) toast.info("Guardado en este dispositivo", "Sin conexión: el pedido se enviará automáticamente al servidor.");
-      if (settings?.auto_print && settings.printer_mode === "browser") printOrder(order, { silent: true });
+      if (!isWaiter && settings?.auto_print && settings.printer_mode === "browser") printOrder(order, { silent: true });
       loadProducts();
     } catch (e) { toast.error("No se pudo crear el pedido", (e as Error).message); }
     finally { setBusy(false); }
   };
 
-  const advance = async (o: Order) => {
-    const n = NEXT[o.status]; if (!n) return;
-    try { await setOrderStatus(o, n.to); } catch (e) { toast.error((e as Error).message); }
+  const deliver = async (o: Order) => {
+    if (o.status !== "ready") return;
+    if (!o.paid) { setCheckoutFor(o); return; }
+    try {
+      const { result } = await setOrderStatus(o, "delivered");
+      setActive((current) => current.filter((item) => item.id !== result.id));
+    } catch (e) { toast.error((e as Error).message); }
   };
 
   const OrderPanel = (
@@ -157,6 +163,15 @@ export default function Pos() {
       </div>
 
       <div className="border-t border-line px-5 pt-4 pb-5">
+        {isWaiter ? (
+          <>
+            <div className="flex justify-between items-baseline mb-3"><span className="font-black">Total del pedido</span><span className="text-2xl font-black">{money(totals.total)}</span></div>
+            <button className="btn-primary btn-lg w-full" disabled={!!busy || !cart.lines.length} aria-busy={busy === "kitchen"} onClick={() => submit(false)}>
+              {busy === "kitchen" ? <><Loader2 size={20} className="animate-spin" /> Enviando…</> : <><ChefHat size={20} /> Enviar a cocina</>}
+            </button>
+            <p className="text-center text-xs font-bold text-muted mt-2">El cajero cobrará y entregará cuando el pedido esté listo.</p>
+          </>
+        ) : (<>
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-black text-[15px]">Pago</h3>
           <button className="text-xs font-extrabold text-peach-2 flex items-center gap-1 hover:underline" onClick={() => setShowDiscount(true)}><Percent size={12} /> Descuento{cart.discount > 0 && `: ${money(cart.discount)}`}</button>
@@ -192,6 +207,7 @@ export default function Pos() {
             {busy === "kitchen" ? <Loader2 size={20} className="animate-spin" /> : <ChefHat size={20} />}
           </button>
         </div>
+        </>)}
       </div>
     </div>
   );
@@ -199,45 +215,51 @@ export default function Pos() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 flex flex-col">
-        <PageHeader title={<>{greeting()}, {user?.name.split(" ")[0]} <span className="anim-wiggle inline-block">👋</span></>} subtitle="Gestiona los pedidos de tus clientes fácilmente.">
+        <PageHeader title={<>{greeting()}, {user?.name.split(" ")[0]} <span className="anim-wiggle inline-block">👋</span></>} subtitle={isWaiter ? "Toma el pedido y envíalo directamente a cocina." : "Gestiona los pedidos de tus clientes fácilmente."}>
           <div className="relative w-full sm:w-72">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
             <input className="input pl-10 rounded-full" placeholder="Buscar producto…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </PageHeader>
 
-        {cash === null ? <CashClosedNotice onOpen={() => setOpenCash(true)} /> : (
+        {cash === null && !isWaiter ? <CashClosedNotice onOpen={() => setOpenCash(true)} /> : (
         <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-24 lg:pb-6">
-          {/* Active orders */}
-          <section className="mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-black text-[17px]">Pedidos activos <span className="text-muted text-sm font-bold">({active.length})</span></h2>
+          {/* The POS only hands over orders. Kitchen progress belongs to the Pedidos screen. */}
+          {!isWaiter && <section className="mb-6 rounded-3xl border border-mint/20 bg-mint-soft/45 p-3.5 md:p-4">
+            <div className="flex items-center gap-3 mb-3 px-1">
+              <div className="w-9 h-9 rounded-xl bg-mint text-white grid place-items-center shadow-soft"><ChefHat size={18} /></div>
+              <div className="min-w-0">
+                <h2 className="font-black text-[17px] leading-tight">Listos para entregar</h2>
+                <p className="text-xs font-semibold text-muted">La cocina actualiza la preparación desde Pedidos.</p>
+              </div>
+              <span className="ml-auto min-w-8 h-8 px-2 rounded-full bg-paper text-mint-2 font-black grid place-items-center shadow-soft">{readyOrders.length}</span>
             </div>
-            {active.length === 0 ? (
-              <div className="card p-4 text-sm font-semibold text-muted flex items-center gap-3"><Sparkles size={18} className="text-peach" /> No hay pedidos en curso. ¡Todo al día!</div>
+            {readyOrders.length === 0 ? (
+              <div className="rounded-2xl bg-paper/70 border border-white px-4 py-3 text-sm font-semibold text-muted flex items-center gap-2.5"><Sparkles size={17} className="text-mint-2" /> Aún no hay pedidos listos para entregar.</div>
             ) : (
-              <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 pb-1">
-                {active.map((o) => {
-                  // Cajero only hands the order over once the kitchen marks it ready; admin can push it through every step.
-                  const st = STATUS[o.status]; const n = user?.role === "admin" || o.status === "ready" ? NEXT[o.status] : undefined;
-                  return (
-                    <div key={o.id} className="card p-3.5 w-[268px] shrink-0 anim-fade-up">
-                      <div className="flex items-center justify-between text-xs font-extrabold text-muted"><span className="flex items-center gap-1.5">{TYPE_ICON[o.type]}{TYPE[o.type].label}{o.table_no && ` · ${o.table_no}`}</span><span>{elapsed(o.created_at)}</span></div>
-                      <div className="mt-1 flex items-baseline justify-between"><div className="font-black text-lg truncate">#{o.daily_number} {o.customer_name && <span className="text-[15px] font-extrabold text-ink-3">{o.customer_name}</span>}</div><div className="font-black text-sm">{money(o.total)}</div></div>
-                      <div className="text-xs font-semibold text-muted truncate">{o.items.map((i) => `${i.qty}× ${itemLabel(i)}`).join(", ")}</div>
-                      <div className="mt-3 flex items-center gap-1.5 min-w-0">
-                        <span className={`pill ${st.soft} ${st.text}`}><span className={`w-1.5 h-1.5 rounded-full ${st.color}`} />{st.label}</span>
-                        {!o.paid && <span className="pill bg-berry-soft text-berry">Sin pagar</span>}
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                {readyOrders.map((o) => (
+                    <div key={o.id} className="relative overflow-hidden bg-paper rounded-2xl border border-line/70 shadow-soft p-4 w-[290px] shrink-0 anim-fade-up">
+                      <span className="absolute inset-y-0 left-0 w-1 bg-mint" />
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2"><span className="text-xl font-black">#{o.daily_number}</span><span className="text-sm font-extrabold text-ink-3 truncate">{o.customer_name || "Sin nombre"}</span></div>
+                          <div className="mt-1 text-xs font-bold text-muted flex items-center gap-1.5">{TYPE_ICON[o.type]}{TYPE[o.type].label}{o.table_no && ` · Mesa ${o.table_no}`} · {elapsed(o.created_at)}</div>
+                        </div>
+                        <div className="font-black text-base shrink-0">{money(o.total)}</div>
+                      </div>
+                      <div className="mt-3 text-[13px] font-semibold text-muted truncate">{o.items.map((i) => `${i.qty}× ${itemLabel(i)}`).join(", ")}</div>
+                      <div className="mt-3 pt-3 border-t border-line/70 flex items-center gap-2">
+                        <span className={`pill ${o.paid ? "bg-mint-soft text-mint-2" : "bg-butter-soft text-[#9a6b00]"}`}>{o.paid ? "Pagado" : "Cobro pendiente"}</span>
                         {o.pending && <span className="pill bg-butter-soft text-[#9a6b00]" title="Se enviará al volver la conexión"><CloudOff size={11} /></span>}
                         <div className="flex-1" />
-                        {n && <button onClick={() => advance(o)} className="btn btn-sm btn-dark shrink-0">{n.label}</button>}
+                        <button onClick={() => deliver(o)} className="btn btn-sm btn-dark shrink-0 px-4">Entregar</button>
                       </div>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             )}
-          </section>
+          </section>}
 
           {/* Menu */}
           <section>
@@ -290,6 +312,7 @@ export default function Pos() {
       </div>
 
       <OpenCashModal open={openCash} onClose={() => setOpenCash(false)} />
+      <CheckoutOrderModal order={checkoutFor} onClose={() => setCheckoutFor(null)} onDone={(updated) => setActive((current) => current.filter((o) => o.id !== updated.id))} />
       {/* Sabores y adicionales del producto antes de entrar al pedido */}
       <OptionsPicker product={picking} onClose={() => setPicking(null)} onAdd={(options) => { if (picking) cart.add(picking, options); setPicking(null); }} />
 
@@ -335,10 +358,10 @@ export default function Pos() {
             )}
             <div className="text-xs font-bold text-muted mt-3">Código de seguimiento: <span className="text-ink font-black tracking-wider">{done.code}</span></div>
             {done.pending && <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-butter-soft text-[#9a6b00] text-xs font-extrabold"><CloudOff size={13} /> Guardado en este dispositivo · se enviará al volver la conexión</div>}
-            <div className="grid grid-cols-2 gap-2 mt-6">
+            {!isWaiter && <div className="grid grid-cols-2 gap-2 mt-6">
               <button className="btn-soft" onClick={() => printOrder(done)}><Printer size={18} /> Ticket</button>
               <button className="btn-soft" onClick={() => printOrder(done, { kitchen: true })}><ChefHat size={18} /> Comanda</button>
-            </div>
+            </div>}
             <button className="btn-primary w-full mt-2" onClick={() => setDone(null)}>Nuevo pedido</button>
           </div>
         )}

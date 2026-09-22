@@ -9,6 +9,7 @@ export const requireRole = (...roles) => (req, res, next) =>
   req.user && roles.includes(req.user.role) ? next() : res.status(403).json({ error: "Sin permisos" });
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ROLES = ["admin", "cajero", "cocina", "inventario", "mesero"];
 const publicUser = (u) => u && ({ id: u.id, name: u.name, email: u.email, role: u.role, active: !!u.active, created_at: u.created_at });
 const byEmail = (email) => get("SELECT * FROM users WHERE lower(email)=lower(?)", String(email || "").trim());
 
@@ -49,7 +50,7 @@ r.get("/users", requireAuth, requireRole("admin"), async (_req, res) => {
 
 r.post("/users", requireAuth, requireRole("admin"), async (req, res) => {
   const { name, email, password, role } = req.body || {};
-  if (!name || !["admin", "cajero", "cocina", "inventario"].includes(role)) return res.status(400).json({ error: "Datos inválidos" });
+  if (!name || !ROLES.includes(role)) return res.status(400).json({ error: "Datos inválidos" });
   if (!EMAIL_RE.test(String(email || ""))) return res.status(400).json({ error: "Correo inválido" });
   if (!password || String(password).length < 6) return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
   if (await byEmail(email)) return res.status(400).json({ error: "Ese correo ya está registrado" });
@@ -61,6 +62,7 @@ r.put("/users/:id", requireAuth, requireRole("admin"), async (req, res) => {
   const { name, email, password, role, active } = req.body || {};
   const u = await get("SELECT * FROM users WHERE id=?", Number(req.params.id) || 0);
   if (!u) return res.status(404).json({ error: "No existe" });
+  if (role !== undefined && !ROLES.includes(role)) return res.status(400).json({ error: "Rol inválido" });
   if (email !== undefined) {
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: "Correo inválido" });
     const other = await byEmail(email);
