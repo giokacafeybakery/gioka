@@ -28,9 +28,10 @@ export function OptionsEditor({ value, onChange, ings }: { value: OptionGroup[];
   const toppings = ings.filter((i) => i.is_topping);
   const [q, setQ] = useState("");
   const s = q.trim().toLowerCase();
-  const toppingList = toppings
-    .filter((i) => !groups.some((g) => g.choices.some((c) => c.ingredient_id === i.id)))
-    .filter((i) => !s || i.name.toLowerCase().includes(s));
+  const alreadyUsed = (id: number) => groups.some((g) => g.choices.some((c) => c.ingredient_id === id));
+  const byQ = (i: Ingredient) => !s || i.name.toLowerCase().includes(s);
+  const toppingList = toppings.filter((i) => !alreadyUsed(i.id)).filter(byQ);
+  const otherList = ings.filter((i) => !alreadyUsed(i.id)).filter(byQ);
 
   const addFromInventory = (ing: Ingredient) => {
     let next = groups;
@@ -48,31 +49,38 @@ export function OptionsEditor({ value, onChange, ings }: { value: OptionGroup[];
 
   return (
     <div className="space-y-3">
-      {(toppings.length > 0 || q) && (
+      {ings.length > 0 && (
         <div className="rounded-2xl border border-peach/40 bg-peach-soft/40 p-3">
           <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wide text-peach-2">
-            <Boxes size={13} /> Complementos del inventario
+            <Boxes size={13} /> Del inventario
           </div>
-          {toppings.length === 0 && q ? (
-            <p className="text-xs text-muted font-semibold mt-2">No hay insumo que sea complemento con ese nombre. Márcalo en Inventario → Insumo → "Es complemento".</p>
-          ) : (
+          <div className="relative mt-2">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input className="input h-9 pl-9" placeholder="Buscar insumo…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          {toppingList.length > 0 && (
             <>
-              <div className="relative mt-2">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                <input className="input h-9 pl-9" placeholder="Buscar complemento…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <div className="mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted">Complementos</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {toppingList.map((ing) => (
+                  <button key={ing.id} type="button" onClick={() => addFromInventory(ing)}
+                    className="chip bg-paper border border-peach/40 text-ink-3 hover:bg-peach-soft transition"><Plus size={12} /> {ing.name} <span className="text-[10px] text-muted font-bold">({ing.unit})</span></button>
+                ))}
               </div>
-              {toppingList.length === 0 ? (
-                <p className="text-xs text-muted font-semibold mt-2">Estos ya están en las opciones.</p>
-              ) : (
-                <div className="mt-2 max-h-40 overflow-y-auto flex flex-wrap gap-1.5">
-                  {toppingList.map((ing) => (
-                    <button key={ing.id} type="button" onClick={() => addFromInventory(ing)}
-                      className="chip bg-paper border border-peach/40 text-ink-3 hover:bg-peach-soft transition"><Plus size={12} /> {ing.name} <span className="text-[10px] text-muted font-bold">({ing.unit})</span></button>
-                  ))}
-                </div>
-              )}
             </>
           )}
+          {otherList.length > 0 && (
+            <>
+              <div className="mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted">Otros insumos</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {otherList.map((ing) => (
+                  <button key={ing.id} type="button" onClick={() => addFromInventory(ing)}
+                    className="chip bg-paper border border-line text-ink-3 hover:bg-cream transition"><Plus size={12} /> {ing.name} <span className="text-[10px] text-muted font-bold">({ing.unit})</span></button>
+                ))}
+              </div>
+            </>
+          )}
+          {toppingList.length === 0 && otherList.length === 0 && <p className="text-xs text-muted font-semibold mt-2">Esos ya están en las opciones.</p>}
         </div>
       )}
 
@@ -129,7 +137,6 @@ function ChoiceRow({ choice, ings, autoFocus, onChange, onRemove, onEnter }: {
   const hasConsumption = !!choice.ingredient_id;
   const sorted = [...ings].sort(sortIngs);
   const toppings = sorted.filter((g) => g.is_topping);
-  const rest = sorted.filter((g) => !g.is_topping);
   const pick = (id: number | string) => {
     const ing = ings.find((g) => g.id === Number(id));
     const b = ing?.unit || "u";
@@ -150,8 +157,8 @@ function ChoiceRow({ choice, ings, autoFocus, onChange, onRemove, onEnter }: {
           <>
             <select className="input h-9 text-sm max-w-[220px]" value={choice.ingredient_id ?? ""} onChange={(e) => pick(e.target.value)}>
               <option value="">— Insumo —</option>
-              {toppings.length > 0 && <optgroup label="Complementos">{toppings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>}
-              {rest.length > 0 && <optgroup label="Otros insumos">{rest.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>}
+              {toppings.length > 0 && <optgroup label="Complementos">{toppings.map((g) => <option key={`c${g.id}`} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>}
+              <optgroup label="Todos los insumos">{sorted.map((g) => <option key={`a${g.id}`} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>
             </select>
             <div className="flex items-center gap-1">
               <input className="input h-9 w-28 text-right text-sm" type="number" step="any" min={0} value={shown} placeholder="0" onChange={(e) => onChange({ qty: toBaseQty(base, unit, Number(e.target.value) || 0) })} />
