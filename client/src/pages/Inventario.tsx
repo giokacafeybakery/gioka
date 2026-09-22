@@ -8,7 +8,8 @@ import { useSocket } from "@/lib/socket";
 import { money, num } from "@/lib/format";
 import { StockLog } from "@/components/StockLog";
 import { ImageCropper } from "@/components/ImageCropper";
-import type { Ingredient, Product } from "@/lib/types";
+import { ProductForm } from "@/components/ProductForm";
+import type { Category, Ingredient, Product } from "@/lib/types";
 import { useAuth } from "@/store/auth";
 import { toast } from "@/store/toast";
 
@@ -24,6 +25,8 @@ export default function Inventario() {
   const [tab, setTab] = useState<Tab>("ingredients");
   const [ings, setIngs] = useState<Ingredient[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [newProduct, setNewProduct] = useState<(Partial<Product> & { image?: string | null }) | null>(null);
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [adjust, setAdjust] = useState<{ type: "product" | "ingredient"; id: number; name: string; unit: string; stock: number } | null>(null);
@@ -38,6 +41,7 @@ export default function Inventario() {
 
   const load = () => Promise.all([
     api.get<Ingredient[]>("/api/inventory/ingredients").then(setIngs),
+    api.get<Category[]>("/api/categories").then(setCats),
     api.get<Product[]>("/api/products?all=1").then((p) => setProducts(p.filter((x) => x.track_stock || x.recipe.length))),
   ]).catch((e) => toast.error(e.message));
   useEffect(() => { load(); }, []);
@@ -100,6 +104,7 @@ export default function Inventario() {
       <PageHeader title="Inventario" subtitle="Insumos, stock de productos y movimientos">
         <Segmented value={tab} onChange={setTab} options={[{ value: "ingredients", label: "Insumos" }, { value: "products", label: "Productos" }, { value: "movements", label: <span className="flex items-center gap-1"><History size={14} /> Movimientos</span> }]} />
         {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", image: null, unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "" })}><Plus size={18} /> Insumo</button>}
+        {tab === "products" && canManage && <button className="btn-primary" onClick={() => setNewProduct({ name: "", description: "", price: 0, cost: 0, emoji: "🍽️", category_id: cats[0]?.id ?? null, active: true, track_stock: false, stock: 0, min_stock: 5, recipe: [], options: [] })}><Plus size={18} /> Producto</button>}
         {!canManage && <span className="pill bg-cream-2 text-ink-3"><Eye size={12} /> Solo lectura</span>}
       </PageHeader>
 
@@ -222,6 +227,8 @@ export default function Inventario() {
         )}
       </Modal>
       <ImageCropper open={!!ingredientCrop} src={ingredientCrop} title="Ajustar foto del insumo" onClose={closeIngredientCrop} onDone={(dataUrl) => { setEdit((current) => current && { ...current, image: dataUrl }); closeIngredientCrop(); }} />
+
+      <ProductForm product={newProduct} cats={cats} ings={ings || []} onClose={() => setNewProduct(null)} onSaved={load} />
 
       <Confirm open={!!del} onClose={() => setDel(null)} danger confirmLabel="Eliminar" title={del ? `¿Eliminar ${del.name}?` : ""} message="Se quitará de todas las recetas que lo usan." onConfirm={async () => { if (!del) return; try { await api.delete(`/api/inventory/ingredients/${del.id}`); toast.success("Insumo eliminado"); load(); } catch (e) { toast.error((e as Error).message); } }} />
     </div>
