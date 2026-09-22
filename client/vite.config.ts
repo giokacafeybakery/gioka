@@ -8,10 +8,13 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
-      // Keep the current version running until the operator explicitly accepts
-      // the update. This avoids an unexpected reload in the middle of a sale.
-      registerType: "prompt",
+VitePWA({
+      // autoUpdate: a new service worker skips waiting and the page reloads by itself, so a device
+      // never keeps serving an old shell that cannot understand new roles. A stale shell sent the
+      // phone to a white screen after login as "mesero" (old homeFor/guard had no route for the
+      // role and redirected to itself forever). Prompting for the update is safer for a running sale,
+      // but a silently broken combination is worse than a single post-deploy reload.
+      registerType: "autoUpdate",
       includeAssets: ["icons/favicon.png", "icons/apple-touch-icon.png", "brand/*.png", "sounds/*.mp3", "anim/**/*.{webp,json}"],
       manifest: {
         name: "Gioka — Café · Heladería · Bakery",

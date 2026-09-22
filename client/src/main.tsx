@@ -5,17 +5,14 @@ import { registerSW } from "virtual:pwa-register";
 import "./index.css";
 import App from "./App";
 import { initOffline } from "./lib/offline/boot";
-import { useAppUpdate } from "./store/update";
 
-let updateSW: ((reloadPage?: boolean) => Promise<void>) | undefined;
-updateSW = registerSW({
+// autoUpdate (vite-plugin-pwa): the new service worker activates on its own and the page reloads,
+// so installed devices switch to the latest shell without user action.
+registerSW({
   immediate: true,
-  onNeedRefresh() {
-    useAppUpdate.getState().announce(() => updateSW?.(true) ?? Promise.resolve());
-  },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
-    // Check periodically and whenever the PC returns to this window or comes
+    // Check periodically and whenever the device returns to this window or comes
     // back online, so an update does not depend on restarting the application.
     const check = () => {
       if (navigator.onLine) void registration.update().catch(() => undefined);
