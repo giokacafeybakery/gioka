@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye, Type, SlidersHorizontal, ReceiptText, Smile } from "lucide-react";
+import { Plus, Pencil, Trash2, Printer, Store, Users, Tags, Package, Save, Wifi, Globe, CheckCircle2, EyeOff, ClipboardList, Send, KeyRound, Hash, Eye, Type, SlidersHorizontal, ReceiptText, Smile, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, Segmented, Empty, Loading, ProductThumb, Toggle, Confirm } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -195,6 +195,15 @@ function SettingsTab() {
   const [form, setForm] = useState<Partial<Settings> | null>(null);
   const [busy, setBusy] = useState(false);
   const [tg, setTg] = useState<{ busy: boolean; ok?: { bot: string; chat: string }; showToken: boolean }>({ busy: false, showToken: false });
+  const WIPE_OPTIONS = [
+    { scope: "sales", label: "Historial de ventas", desc: "Pedidos, líneas y movimientos de stock generados por las ventas." },
+    { scope: "products", label: "Productos", desc: "Todo el catálogo de productos y sus recetas." },
+    { scope: "categories", label: "Categorías", desc: "Las categorías del menú (los productos quedan sin categoría)." },
+    { scope: "ingredients", label: "Insumos", desc: "Los ingredientes y las recetas que los usan." },
+    { scope: "all", label: "Todo junto", desc: "Ventas, productos, categorías e insumos. Se conservan usuarios, caja y ajustes." },
+  ];
+  const [wipe, setWipe] = useState<{ scope: string; label: string; desc: string } | null>(null);
+  const [wipeText, setWipeText] = useState("");
   useEffect(() => { load().then(() => setForm(useSettings.getState().settings)); }, [load]);
   if (!form || !settings) return <Loading />;
   const NUMERIC = new Set<keyof Settings>(["printer_width", "printer_port", "tax_rate"]);
@@ -202,6 +211,17 @@ function SettingsTab() {
   const doSave = async () => { setBusy(true); try { await save(form); toast.success("Ajustes guardados"); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); } };
   const test = async () => { try { await save(form); await api.post("/api/print/test"); toast.success("Página de prueba enviada"); } catch (e) { toast.error("Impresora", (e as Error).message); } };
   const tgConfigured = !!(form.telegram_bot_token?.trim() && form.telegram_chat_id?.trim());
+  const doWipe = async () => {
+    if (!wipe) return;
+    setBusy(true);
+    try {
+      await api.post("/api/settings/wipe", { scope: wipe.scope });
+      api.clearCache();
+      load();
+      toast.success("Datos borrados", wipe.label);
+    } catch (e) { toast.error("No se pudieron borrar los datos", (e as Error).message); }
+    finally { setWipe(null); setWipeText(""); setBusy(false); }
+  };
   const testTelegram = async () => {
     setTg((t) => ({ ...t, busy: true, ok: undefined }));
     try {
@@ -379,6 +399,20 @@ function SettingsTab() {
         </section>
 
         <div className="flex justify-end"><button className="btn-primary btn-lg" disabled={busy} onClick={doSave}><Save size={20} /> Guardar ajustes</button></div>
+
+        {/* ---- Borrar datos ---- */}
+        <section className="card p-5 border-berry/30">
+          <h3 className="font-black text-lg flex items-center gap-2 mb-1"><AlertTriangle size={20} className="text-berry" /> Borrar datos</h3>
+          <p className="text-sm font-semibold text-muted mb-4">Operaciones permanentes e irreversibles. Se recomienda hacer una copia de respaldo antes de usarlas.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {WIPE_OPTIONS.map((o) => (
+              <button key={o.scope} onClick={() => setWipe({ ...o })} className={`p-3 rounded-xl border-2 border-line text-left hover:border-berry/60 transition ${o.scope === "all" ? "bg-berry-soft/60" : "bg-white"}`}>
+                <div className="font-extrabold text-sm flex items-center gap-1.5"><Trash2 size={15} className="text-berry" /> {o.label}</div>
+                <div className="text-xs font-semibold text-muted mt-1">{o.desc}</div>
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
 
       {/* ---- Right column: sticky preview ---- */}
@@ -397,6 +431,21 @@ function SettingsTab() {
           </div>
         </div>
       </div>
+
+      <Modal open={!!wipe} onClose={() => { setWipe(null); setWipeText(""); }} title={wipe ? `¿Borrar ${wipe.label.toLowerCase()}?` : ""} width="max-w-md"
+        footer={<>
+          <button className="btn-ghost" disabled={busy} onClick={() => { setWipe(null); setWipeText(""); }}>Cancelar</button>
+          <button className="btn-danger" disabled={busy || wipeText.trim().toUpperCase() !== "BORRAR"} onClick={() => void doWipe()}><Trash2 size={18} /> Borrar datos</button>
+        </>}>
+        <div className="space-y-3">
+          <p className="text-[15px] text-ink-3 font-semibold">Esta acción es <b>permanente</b> y elimina los datos de inmediato.<br />No se puede deshacer.</p>
+          <p className="text-sm font-semibold text-muted">{wipe?.desc}</p>
+          <div>
+            <label className="label" htmlFor="wipe-confirm">Escribe <span className="font-mono font-black">BORRAR</span> para confirmar</label>
+            <input id="wipe-confirm" className="input uppercase tracking-wider" autoFocus placeholder="BORRAR" value={wipeText} onChange={(e) => setWipeText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && wipeText.trim().toUpperCase() === "BORRAR" && !busy && void doWipe()} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

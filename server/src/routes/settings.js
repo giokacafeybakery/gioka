@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSettings, setSetting } from "../db.js";
+import { getSettings, setSetting, transaction, query } from "../db.js";
 import { requireAuth, requireRole } from "./auth.js";
 import { testConnection } from "../telegram.js";
 
@@ -32,6 +32,32 @@ r.post("/telegram/test", requireAuth, requireRole("admin"), async (req, res) => 
   } catch (e) {
     res.status(400).json({ error: `Telegram: ${e.message}` });
   }
+});
+
+// ---- Borrado de datos (solo admin) ---------------------------------------------
+// Each scope is independent and predictable: sales history (orders + their stock
+// movements), products, categories and ingredients. `all` wipes everything except
+// users, sessions and settings.
+const WIPE = {
+  sales: ["DELETE FROM stock_movements WHERE order_id IS NOT NULL", "DELETE FROM orders"],
+  products: ["DELETE FROM stock_movements WHERE item_type='product' AND order_id IS NULL", "DELETE FROM products"],
+  categories: ["DELETE FROM categories"],
+  ingredients: ["DELETE FROM stock_movements WHERE item_type='ingredient' AND order_id IS NULL", "DELETE FROM ingredients"],
+  all: ["DELETE FROM stock_movements", "DELETE FROM orders", "DELETE FROM products", "DELETE FROM categories", "DELETE FROM ingredients"],
+};
+
+r.post("/wipe", requireAuth, requireRole("admin"), async (req, res) => {
+  const scope = String(req.body?.scope || "");
+  if (!WIPE[scope]) return res.status(400).json({ error: "Indica qué datos borrar" });
+  const count = async (table) => (await query(`SELECT COUNT(*)::int AS n FROM ${table}`)).rows[0].n;
+  const before = {
+    orders: await count("orders"), products: await count("products"), categories: await count("categories"),
+    ingredients: await count("ingredients"), movements: await count("stock_movements"),
+  };
+  await transaction(async () => {
+    for (const sql of WIPE[scope]) await query(sql);
+  });
+  res.json({ ok: true, deleted: before });
 });
 
 export default r;
