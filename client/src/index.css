@@ -99,20 +99,22 @@ body {
 @media print {
   body * { visibility: hidden !important; }
   #print-root, #print-root * { visibility: visible !important; }
-  #print-root { position: absolute !important; left: 0; top: 0; width: auto; }
-  @page { size: 80mm auto; margin: 2mm; }
+  #print-root { position: absolute !important; left: 0; top: 0; width: auto; margin: 0 !important; }
+  @page { size: 80mm auto; margin: 0; }
 }
 #print-root { display: none; background: #fff; }
 @media print {
   #print-root { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-.receipt { font-family: "Courier New", ui-monospace, monospace; font-size: 12px; line-height: 1.35; color: #000; width: 72mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.receipt { box-sizing: border-box; font-family: "Courier New", ui-monospace, monospace; font-size: 12px; font-weight: 700; line-height: 1.35; color: #000; width: 68mm; overflow: hidden; overflow-wrap: anywhere; -webkit-font-smoothing: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .receipt .logo { display: block; width: 44mm; margin: 0 auto 4px; }
 .receipt .c { text-align: center; }
-.receipt .b { font-weight: 700; }
+.receipt .b { font-weight: 800; }
 .receipt .xl { font-size: 20px; font-weight: 800; }
 .receipt .lg { font-size: 15px; font-weight: 800; }
-.receipt .row { display: flex; justify-content: space-between; gap: 8px; }
+.receipt .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; width: 100%; }
+.receipt .row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.receipt .row > span:last-child { flex: 0 0 auto; text-align: right; }
 .receipt .hr { border-top: 1px dashed #000; margin: 6px 0; }
 .receipt .hr2 { border-top: 2px solid #000; margin: 6px 0; }
 .receipt .box { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; overflow-wrap: anywhere; }

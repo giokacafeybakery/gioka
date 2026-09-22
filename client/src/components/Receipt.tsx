@@ -36,7 +36,10 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
   const sep = settings.receipt_separator_style || "dashed";
   const sepStyle = sep === "solid" ? "1px solid #000" : sep === "dotted" ? "2px dotted #000" : sep === "double" ? "3px double #000" : "1px dashed #000";
   const fontSize = settings.receipt_font_size === "small" ? 10 : settings.receipt_font_size === "large" ? 14 : 12;
-  const receiptWidth = settings.printer_width === 32 ? "48mm" : "72mm";
+  // Thermal drivers commonly reserve a few millimetres on either side even
+  // when the selected roll is 58/80 mm. Keep the receipt inside that real
+  // printable area so the right-hand column is never clipped.
+  const receiptWidth = settings.printer_width === 32 ? "50mm" : "68mm";
   return (
     <div className="receipt" style={{ fontSize, width: receiptWidth }}>
       {settings.receipt_show_logo !== false && !kitchen && <img src="/brand/wordmark.png" alt="" className="logo" />}
@@ -128,10 +131,10 @@ export function PrintHost() {
   if (!job || !settings) return null;
   const is32 = (settings.printer_width ?? 42) === 32;
   const paper = is32 ? "58mm" : "80mm";
-  const content = is32 ? "48mm" : "72mm";
+  const content = is32 ? "50mm" : "68mm";
   return (
     <>
-      <style>{`@media print{@page{size:${paper} auto;margin:2mm}#print-root{width:${content}!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
+      <style>{`@media print{@page{size:${paper} auto;margin:0}#print-root{width:${content}!important;margin:0!important;padding:2mm 0 0 0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
       <div id="print-root"><ReceiptView order={job.order} settings={settings} kitchen={job.kitchen} /></div>
     </>
   );
