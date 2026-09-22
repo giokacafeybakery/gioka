@@ -92,8 +92,7 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
               <Field label="Stock mínimo"><input className="input" type="number" step="any" value={edit.min_stock ?? 0} onChange={(e) => setEdit({ ...edit, min_stock: Number(e.target.value) })} /></Field>
             </>)}
             <div className="col-span-2">
-              <label className="label">Receta (insumos que descuenta cada venta)</label>
-              <p className="text-[11px] font-semibold text-muted mb-2">Elige la unidad (ej. 250 <b>g</b> de café) — la app convierte y guarda en la unidad del insumo.</p>
+              <label className="label">Insumos por venta</label>
               <div className="space-y-2">
                 {(edit.recipe || []).map((r, i) => {
                   const base = ings.find((g) => g.id === r.ingredient_id)?.unit || "u";
@@ -116,7 +115,7 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
               </div>
             </div>
             <div className="col-span-2">
-              <label className="label">Sabores y adicionales (el cajero los elige al vender)</label>
+              <label className="label">Opciones al vender</label>
               <OptionsEditor value={edit.options || []} ings={ings} onChange={(options) => setEdit({ ...edit, options })} />
             </div>
           </div>
