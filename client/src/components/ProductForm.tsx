@@ -55,9 +55,9 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
   const catColor = cats.find((c) => c.id === edit.category_id)?.color || "#F2915A";
   return (
     <>
-      <Modal open={!!edit} onClose={onClose} title={edit.id ? "Editar producto" : "Nuevo producto"} width="max-w-2xl"
+      <Modal open={!!edit} onClose={onClose} title={edit.id ? "Editar producto" : "Nuevo producto"} width="max-w-3xl"
         footer={<><button className="btn-ghost" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={save}><Save size={18} /> Guardar</button></>}>
-        <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-5">
           <div>
             <label className="label">Imagen</label>
             <div className="relative">
@@ -97,12 +97,12 @@ export function ProductForm({ product, cats, ings, onClose, onSaved }: {
                   const units = RECIPE_UNITS[base] || [base];
                   const du = (r as RecipeDraft)._unit || units[0];
                   return (
-                    <div key={i} className="flex gap-2 items-center flex-wrap">
-                      <select className="input h-10 min-w-[160px] flex-[2_1_160px]" value={r.ingredient_id} onChange={(e) => { const recipe = [...(edit.recipe || [])]; const n = Number(e.target.value); recipe[i] = { ...recipe[i], ingredient_id: n, _unit: undefined }; setEdit({ ...edit, recipe }); }}>
+                    <div key={i} className="grid grid-cols-[minmax(0,1fr)_92px_74px_36px] gap-2 items-center">
+                      <select className="input h-10 min-w-0" value={r.ingredient_id} onChange={(e) => { const recipe = [...(edit.recipe || [])]; const n = Number(e.target.value); recipe[i] = { ...recipe[i], ingredient_id: n, _unit: undefined }; setEdit({ ...edit, recipe }); }}>
                         {ings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}
                       </select>
-                      <input className="input h-10 w-24 text-right" type="number" step="any" min={0} value={fromBaseQty(base, du, Number(r.qty) || 0)} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], qty: toBaseQty(base, du, Number(e.target.value) || 0) }; setEdit({ ...edit, recipe }); }} />
-                      <select className="input h-10 w-[74px]" value={du} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], _unit: e.target.value }; setEdit({ ...edit, recipe }); }}>
+                      <input className="input h-10 w-full text-right" type="number" step="any" min={0} value={fromBaseQty(base, du, Number(r.qty) || 0)} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], qty: toBaseQty(base, du, Number(e.target.value) || 0) }; setEdit({ ...edit, recipe }); }} />
+                      <select className="input h-10 w-full" value={du} onChange={(e) => { const recipe = [...(edit.recipe || [])]; recipe[i] = { ...recipe[i], _unit: e.target.value }; setEdit({ ...edit, recipe }); }}>
                         {units.map((u) => <option key={u} value={u}>{u}</option>)}
                       </select>
                       <button className="btn-icon btn-ghost w-9 h-9 text-berry" onClick={() => setEdit({ ...edit, recipe: (edit.recipe || []).filter((_, j) => j !== i) })}><X size={15} /></button>

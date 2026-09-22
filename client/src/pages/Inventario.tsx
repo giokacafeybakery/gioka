@@ -169,32 +169,39 @@ export default function Inventario() {
       </div>
 
       {/* Adjust modal */}
-      <Modal open={!!adjust} onClose={() => setAdjust(null)} title={adjust ? `Ajustar: ${adjust.name}` : ""} subtitle={adjust ? `Stock actual: ${num(adjust.stock, 2)} ${adjust.unit}` : ""} width="max-w-sm"
+      <Modal open={!!adjust} onClose={() => setAdjust(null)} title={adjust ? `Ajustar: ${adjust.name}` : ""} subtitle={adjust ? `Stock actual: ${num(adjust.stock, 2)} ${adjust.unit}` : ""} width="max-w-lg"
         footer={<><button className="btn-ghost" onClick={() => setAdjust(null)}>Cancelar</button><button className="btn-primary" disabled={adjBusy || adjQty === "" || (photoRequired && !adjPhoto)} onClick={doAdjust}>Guardar</button></>}>
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {([["in", "Entrada", <ArrowDownToLine size={18} />], ["out", "Salida", <ArrowUpFromLine size={18} />], ["set", "Fijar", <Pencil size={18} />]] as ["in" | "out" | "set", string, React.ReactNode][]).map(([m, l, ic]) => (
-            <button key={m} onClick={() => { setAdjMode(m); setAdjReason(m === "in" ? "compra" : m === "out" ? "merma" : "inventario"); }} className={`h-14 rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 text-xs font-extrabold ${adjMode === m ? "border-peach bg-peach-soft text-peach-2" : "border-line text-muted"}`}>{ic}{l}</button>
+        <div className="flex gap-2 mb-4">
+          {([["in", <ArrowDownToLine size={16} />, "Entrada"], ["out", <ArrowUpFromLine size={16} />, "Salida"], ["set", <Pencil size={16} />, "Fijar"]] as const).map(([m, ic, l]) => (
+            <button key={m} onClick={() => { setAdjMode(m); setAdjReason(m === "in" ? "compra" : m === "out" ? "merma" : "inventario"); }} className={`h-12 flex-1 rounded-xl border-2 flex items-center justify-center gap-1.5 text-sm font-extrabold transition ${adjMode === m ? "border-peach bg-peach-soft text-peach-2" : "border-line text-muted"}`}>{ic}{l}</button>
           ))}
         </div>
-        <Field label={adjMode === "set" ? "Nuevo stock" : "Cantidad"}><input autoFocus className="input text-lg" type="number" inputMode="decimal" min={0} step="any" value={adjQty} onChange={(e) => setAdjQty(e.target.value)} /></Field>
-        {adjust && adjQty !== "" && <div className="mt-2 text-sm font-black text-ink-3">Stock resultante: {num(adjMode === "set" ? Number(adjQty) : adjust.stock + (adjMode === "out" ? -1 : 1) * Number(adjQty), 2)} {adjust.unit}</div>}
+        {adjust && adjQty !== "" && <div className="mt-2 mb-4 flex items-center justify-between text-sm font-black"><span className="text-ink-3">Stock resultante</span><span className="pill bg-mint-soft text-mint-2 text-sm">{num(adjMode === "set" ? Number(adjQty) : adjust.stock + (adjMode === "out" ? -1 : 1) * Number(adjQty), 2)} {adjust.unit}</span></div>}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={adjMode === "set" ? "Nuevo stock" : "Cantidad"} className="col-span-2">
+            <div className="relative">
+              <input autoFocus className="input text-lg pr-14" type="number" inputMode="decimal" min={0} step="any" value={adjQty} onChange={(e) => setAdjQty(e.target.value)} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-extrabold text-muted">{adjust?.unit}</span>
+            </div>
+          </Field>
+          <Field label="Motivo"><select className="input" value={adjReason} onChange={(e) => setAdjReason(e.target.value)}>{REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
+          <Field label="Detalle (opcional)"><input className="input" placeholder="Ej: factura #1234, lote" value={adjNotes} onChange={(e) => setAdjNotes(e.target.value)} maxLength={500} /></Field>
+        </div>
         <div className="mt-4">
           <label className="label">Foto del comprobante {photoRequired ? <span className="text-berry">(obligatoria)</span> : <span className="normal-case tracking-normal">(opcional)</span>}</label>
           <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ""; }} />
           {adjPhoto ? (
             <div className="relative rounded-2xl overflow-hidden border border-line">
-              <img src={adjPhoto} alt="Comprobante" className="w-full max-h-56 object-cover" />
+              <img src={adjPhoto} alt="Comprobante" className="w-full max-h-44 object-cover" />
               <button className="absolute top-2 right-2 w-8 h-8 rounded-full bg-ink/70 text-white grid place-items-center" onClick={() => setAdjPhoto(null)} aria-label="Quitar foto"><X size={14} /></button>
               <button className="absolute bottom-2 right-2 btn btn-sm bg-paper/90 text-ink" onClick={() => photoRef.current?.click()}><Camera size={14} /> Cambiar</button>
             </div>
           ) : (
-            <button onClick={() => photoRef.current?.click()} className={`w-full h-28 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1 font-bold text-sm transition ${photoRequired ? "border-peach/60 bg-peach-soft/40 text-peach-2 hover:bg-peach-soft" : "border-line text-muted hover:bg-cream"}`}>
-              <Camera size={24} /> Tomar foto o subir imagen
+            <button onClick={() => photoRef.current?.click()} className={`w-full h-24 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1 font-bold text-sm transition ${photoRequired ? "border-peach/60 bg-peach-soft/40 text-peach-2 hover:bg-peach-soft" : "border-line text-muted hover:bg-cream"}`}>
+              <Camera size={22} /> Tomar foto o subir imagen
             </button>
           )}
         </div>
-        <Field label="Motivo" className="mt-3"><select className="input" value={adjReason} onChange={(e) => setAdjReason(e.target.value)}>{REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
-        <Field label="Detalle (opcional)" className="mt-3"><input className="input" placeholder="Ej: factura #1234, proveedor, lote…" value={adjNotes} onChange={(e) => setAdjNotes(e.target.value)} maxLength={500} /></Field>
         <p className="text-[11px] font-semibold text-muted mt-3">Se registrará con fecha y hora actual a nombre de {user?.name}.</p>
       </Modal>
 
