@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, IceCreamCone, Sparkles, GripVertical, Boxes } from "lucide-react";
+import { Plus, X, IceCreamCone, Sparkles, GripVertical, Boxes, Search } from "lucide-react";
 import { Segmented, Toggle } from "@/components/ui";
 import type { Ingredient, OptionChoice, OptionGroup } from "@/lib/types";
 
@@ -8,11 +8,13 @@ import type { Ingredient, OptionChoice, OptionGroup } from "@/lib/types";
 const UNITS: Record<string, string[]> = { kg: ["g", "kg"], L: ["ml", "L"], g: ["g"], ml: ["ml"], u: ["u"], caja: ["caja"], paq: ["paq"] };
 const toBaseQty = (base: string, disp: string, v: number) => (disp === "g" && base === "kg") || (disp === "ml" && base === "L") ? v / 1000 : v;
 const fromBaseQty = (base: string, disp: string, v: number) => (disp === "g" && base === "kg") || (disp === "ml" && base === "L") ? v * 1000 : v;
+const sortIngs = (a: Ingredient, b: Ingredient) => (Number(b.is_topping) - Number(a.is_topping)) || a.name.localeCompare(b.name);
 
 /**
  * Admin editor for a product's sabores y adicionales. Each group has a name, a mode (one choice / several),
  * whether the cashier must choose, and its choices with an optional extra price.
  * A choice may optionally consume an ingredient (stock) when sold, with its own quantity and unit.
+ * Ingredients marked "es complemento" are listed up top for quick adding (search box).
  */
 export function OptionsEditor({ value, onChange, ings }: { value: OptionGroup[]; onChange: (groups: OptionGroup[]) => void; ings: Ingredient[] }) {
   const groups = value || [];
@@ -23,8 +25,57 @@ export function OptionsEditor({ value, onChange, ings }: { value: OptionGroup[];
     extra: (): OptionGroup => ({ name: "Adicionales", type: "multi", required: false, choices: [{ name: "", price: 0 }] }),
   };
 
+  const toppings = ings.filter((i) => i.is_topping);
+  const [q, setQ] = useState("");
+  const s = q.trim().toLowerCase();
+  const toppingList = toppings
+    .filter((i) => !groups.some((g) => g.choices.some((c) => c.ingredient_id === i.id)))
+    .filter((i) => !s || i.name.toLowerCase().includes(s));
+
+  const addFromInventory = (ing: Ingredient) => {
+    let next = groups;
+    let idx = groups.findIndex((g) => g.type === "multi" && g.choices.length && g.choices.some((c) => c.name));
+    if (idx < 0) {
+      const g = presets.extra();
+      next = [...groups, g];
+      idx = next.length - 1;
+    }
+    const g = next[idx];
+    const withChoice = { ...g, choices: [...g.choices, { name: ing.name, price: 0, ingredient_id: ing.id, qty: 1 }] };
+    onChange(next.map((x, j) => (j === idx ? withChoice : x)));
+    setQ("");
+  };
+
   return (
     <div className="space-y-3">
+      {(toppings.length > 0 || q) && (
+        <div className="rounded-2xl border border-peach/40 bg-peach-soft/40 p-3">
+          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wide text-peach-2">
+            <Boxes size={13} /> Complementos del inventario
+          </div>
+          {toppings.length === 0 && q ? (
+            <p className="text-xs text-muted font-semibold mt-2">No hay insumo que sea complemento con ese nombre. Márcalo en Inventario → Insumo → "Es complemento".</p>
+          ) : (
+            <>
+              <div className="relative mt-2">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                <input className="input h-9 pl-9" placeholder="Buscar complemento…" value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
+              {toppingList.length === 0 ? (
+                <p className="text-xs text-muted font-semibold mt-2">Estos ya están en las opciones.</p>
+              ) : (
+                <div className="mt-2 max-h-40 overflow-y-auto flex flex-wrap gap-1.5">
+                  {toppingList.map((ing) => (
+                    <button key={ing.id} type="button" onClick={() => addFromInventory(ing)}
+                      className="chip bg-paper border border-peach/40 text-ink-3 hover:bg-peach-soft transition"><Plus size={12} /> {ing.name} <span className="text-[10px] text-muted font-bold">({ing.unit})</span></button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {groups.map((g, i) => (
         <div key={i} className="rounded-2xl border border-line bg-cream/50 p-3 anim-fade-up">
           <div className="flex flex-wrap items-center gap-2">
@@ -37,7 +88,7 @@ export function OptionsEditor({ value, onChange, ings }: { value: OptionGroup[];
           <div className="mt-2 grid grid-cols-[1fr_110px_36px] gap-2 items-center">
             <span className="label !mb-0">Opción</span><span className="label !mb-0">Extra ($)</span><span />
             {g.choices.map((c, k) => (
-              <ChoiceRow key={k} choice={c} ings={ings} autoFocus={c.name === "" && k === g.choices.length - 1}
+              <ChoiceRow key={c.ingredient_id ? `i${c.ingredient_id}` : k} choice={c} ings={ings} autoFocus={c.name === "" && k === g.choices.length - 1}
                 onChange={(patch) => setGroup(i, { choices: g.choices.map((x, m) => (m === k ? { ...x, ...patch } : x)) })}
                 onRemove={() => setGroup(i, { choices: g.choices.filter((_, m) => m !== k) })}
                 onEnter={() => setGroup(i, { choices: [...g.choices, { name: "", price: 0 }] })} />
@@ -76,6 +127,16 @@ function ChoiceRow({ choice, ings, autoFocus, onChange, onRemove, onEnter }: {
   }, [choice.ingredient_id]);
   const shown = fromBaseQty(base, unit, Number(choice.qty) || 0);
   const hasConsumption = !!choice.ingredient_id;
+  const sorted = [...ings].sort(sortIngs);
+  const toppings = sorted.filter((g) => g.is_topping);
+  const rest = sorted.filter((g) => !g.is_topping);
+  const pick = (id: number | string) => {
+    const ing = ings.find((g) => g.id === Number(id));
+    const b = ing?.unit || "u";
+    const us = UNITS[b] || [b];
+    setUnit(us.find((u) => u !== b) || b);
+    onChange({ ingredient_id: id ? Number(id) : null, qty: 1 });
+  };
   return (
     <div className="col-span-3 grid grid-cols-[1fr_110px_36px] gap-2 items-center">
       <input className="input h-10" placeholder="Ej: Chocolate" value={choice.name} autoFocus={autoFocus} onChange={(e) => onChange({ name: e.target.value })}
@@ -87,9 +148,10 @@ function ChoiceRow({ choice, ings, autoFocus, onChange, onRemove, onEnter }: {
           <button type="button" className="btn-ghost btn-sm text-muted" onClick={() => onChange({ ingredient_id: ings[0]?.id || null, qty: 1 })}><Boxes size={13} /> Consumo de inventario</button>
         ) : (
           <>
-            <select className="input h-9 text-sm max-w-[220px]" value={choice.ingredient_id ?? ""} onChange={(e) => { onChange({ ingredient_id: e.target.value ? Number(e.target.value) : null, qty: 1 }); setUnit(UNITS[ings.find((g) => g.id === Number(e.target.value))?.unit || "u"]?.find((u) => u !== (ings.find((g) => g.id === Number(e.target.value))?.unit || "u")) || (ings.find((g) => g.id === Number(e.target.value))?.unit || "u")); }}>
+            <select className="input h-9 text-sm max-w-[220px]" value={choice.ingredient_id ?? ""} onChange={(e) => pick(e.target.value)}>
               <option value="">— Insumo —</option>
-              {ings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}
+              {toppings.length > 0 && <optgroup label="Complementos">{toppings.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>}
+              {rest.length > 0 && <optgroup label="Otros insumos">{rest.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>)}</optgroup>}
             </select>
             <div className="flex items-center gap-1">
               <input className="input h-9 w-28 text-right text-sm" type="number" step="any" min={0} value={shown} placeholder="0" onChange={(e) => onChange({ qty: toBaseQty(base, unit, Number(e.target.value) || 0) })} />

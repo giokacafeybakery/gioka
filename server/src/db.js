@@ -233,6 +233,8 @@ ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS client_id TEXT;
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS offline INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS client_id TEXT;
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS image TEXT;
+-- Complementos: insumos marcados para ofrecerse como adicionales/elegir al vender (se añaden en el editor de opciones del producto).
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS is_topping INTEGER NOT NULL DEFAULT 0;
 -- Delivery: dirección y punto de referencia para que el repartidor ubique al cliente con la factura.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_address TEXT NOT NULL DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEFAULT '';
@@ -379,7 +381,8 @@ async function seedCatalog() {
     ["Conos de waffle", "u", 45, 60, 0.15, "Empaques Pro"],
     ["Pan de hamburguesa", "u", 20, 15, 0.35, "Molinos Sur"],
   ];
-  for (const i of ings) await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at) VALUES(?,?,?,?,?,?,?)", ...i, t);
+  const TOPPING_INGS = new Set(["Chocolate", "Fresas", "Crema de leche"]);
+  for (const i of ings) await run("INSERT INTO ingredients(name,unit,stock,min_stock,cost,supplier,created_at,is_topping) VALUES(?,?,?,?,?,?,?,?)", ...i, t, TOPPING_INGS.has(i[0]) ? 1 : 0);
 
   const choices = (...names) => names.map((n) => (Array.isArray(n) ? { name: n[0], price: n[1] } : { name: n, price: 0 }));
   const FLAVOR = (type) => ({ name: "Sabor", type, required: true, choices: choices("Vainilla", "Chocolate", "Fresa", "Pistacho", "Dulce de leche") });

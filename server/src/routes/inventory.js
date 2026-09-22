@@ -11,6 +11,8 @@ const findItem = (table, ref) => typeof ref === "string" && ref.startsWith("c_")
   ? get(`SELECT * FROM ${table} WHERE client_id=?`, ref.slice(2))
   : get(`SELECT * FROM ${table} WHERE id=?`, id(ref));
 
+const parseIng = (i) => (i && { ...i, is_topping: !!i.is_topping }) || null;
+
 export async function lowStock() {
   const products = await all("SELECT id,name,emoji,stock,min_stock,'u' AS unit FROM products WHERE active=1 AND track_stock=1 AND stock<=min_stock ORDER BY stock/NULLIF(min_stock,0)");
   const ingredients = await all("SELECT id,name,unit,stock,min_stock,supplier FROM ingredients WHERE stock<=min_stock ORDER BY stock/NULLIF(min_stock,0)");
@@ -33,10 +35,11 @@ export default function inventoryRoutes() {
   const admin = requireRole("admin");
 
   r.get("/ingredients", async (_req, res) => {
-    res.json(await all(`SELECT i.*, (SELECT COUNT(*) FROM product_ingredients pi WHERE pi.ingredient_id=i.id) AS used_in FROM ingredients i ORDER BY i.name`));
+    const rows = await all(`SELECT i.*, (SELECT COUNT(*) FROM product_ingredients pi WHERE pi.ingredient_id=i.id) AS used_in FROM ingredients i ORDER BY i.name`);
+    res.json(rows.map(parseIng));
   });
   r.post("/ingredients", manager, async (req, res) => {
-    const { name, image, unit = "u", stock = 0, min_stock = 0, cost = 0, supplier = "", photo } = req.body;
+    const { name, image, unit = "u", stock = 0, min_stock = 0, cost = 0, supplier = "", photo, is_topping = 0 } = req.body;
     const cid = clientId(req.body.client_id);
     if (cid) { const dup = await get("SELECT * FROM ingredients WHERE client_id=?", cid); if (dup) return res.json(dup); }
     if (!name) return res.status(400).json({ error: "Nombre requerido" });
@@ -49,15 +52,15 @@ export default function inventoryRoutes() {
       ? await savePhoto(photo, caption(["🧾 Stock inicial", { b: name }, fmtQty(Number(stock), unit), supplier && `🏪 ${supplier}`, `👤 ${req.user.name}`]))
       : null;
     const t = cid ? clientTime(req.body.created_at) : now();
-    const x = await run("INSERT INTO ingredients(name,image,unit,stock,min_stock,cost,supplier,created_at,client_id) VALUES(?,?,?,?,?,?,?,?,?)", name, imagePath, unit, Number(stock), Number(min_stock), Number(cost), supplier, t, cid);
+    const x = await run("INSERT INTO ingredients(name,image,unit,stock,min_stock,cost,supplier,is_topping,created_at,client_id) VALUES(?,?,?,?,?,?,?,?,?,?)", name, imagePath, unit, Number(stock), Number(min_stock), Number(cost), supplier, is_topping ? 1 : 0, t, cid);
     if (Number(stock) !== 0)
       await run("INSERT INTO stock_movements(item_type,item_id,qty,reason,notes,photo,user_id,created_at,offline) VALUES('ingredient',?,?,?,?,?,?,?,?)", x.lastInsertRowid, Number(stock), "stock inicial", "", photoPath, (cid && id(req.body.user_id)) || req.user.id, t, cid && req.body.offline ? 1 : 0);
-    res.json(await get("SELECT * FROM ingredients WHERE id=?", x.lastInsertRowid));
+    res.json(parseIng(await get("SELECT * FROM ingredients WHERE id=?", x.lastInsertRowid)));
   });
   r.put("/ingredients/:id", manager, async (req, res) => {
     const i = await findItem("ingredients", req.params.id);
     if (!i) return res.status(404).json({ error: "No existe" });
-    const { name = i.name, unit = i.unit, stock = i.stock, min_stock = i.min_stock, cost = i.cost, supplier = i.supplier } = req.body;
+    const { name = i.name, unit = i.unit, stock = i.stock, min_stock = i.min_stock, cost = i.cost, supplier = i.supplier, is_topping = i.is_topping } = req.body;
     let image = i.image;
     if (req.body.image === null) image = null;
     else if (typeof req.body.image === "string" && req.body.image.startsWith("data:")) {
@@ -65,8 +68,8 @@ export default function inventoryRoutes() {
       if (!saved) return res.status(400).json({ error: "La foto del insumo debe ser JPG, PNG o WebP" });
       image = saved;
     }
-    await run("UPDATE ingredients SET name=?,image=?,unit=?,stock=?,min_stock=?,cost=?,supplier=? WHERE id=?", name, image, unit, Number(stock), Number(min_stock), Number(cost), supplier, i.id);
-    res.json(await get("SELECT * FROM ingredients WHERE id=?", i.id));
+    await run("UPDATE ingredients SET name=?,image=?,unit=?,stock=?,min_stock=?,cost=?,supplier=?,is_topping=? WHERE id=?", name, image, unit, Number(stock), Number(min_stock), Number(cost), supplier, is_topping ? 1 : 0, i.id);
+    res.json(parseIng(await get("SELECT * FROM ingredients WHERE id=?", i.id)));
   });
   r.delete("/ingredients/:id", admin, async (req, res) => {
     await run("DELETE FROM ingredients WHERE id=?", id(req.params.id));

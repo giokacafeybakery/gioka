@@ -95,7 +95,7 @@ export default function Inventario() {
     <div className="flex flex-col h-full min-h-0">
       <PageHeader title="Inventario" subtitle="Insumos y movimientos">
         <Segmented value={tab} onChange={setTab} options={[{ value: "ingredients", label: "Insumos" }, { value: "movements", label: <span className="flex items-center gap-1"><History size={14} /> Movimientos</span> }]} />
-        {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", image: null, unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "" })}><Plus size={18} /> Insumo</button>}
+        {tab === "ingredients" && canManage && <button className="btn-primary" onClick={() => setEdit({ name: "", image: null, unit: "u", stock: 0, min_stock: 0, cost: 0, supplier: "", is_topping: false })}><Plus size={18} /> Insumo</button>}
         {!canManage && <span className="pill bg-cream-2 text-ink-3"><Eye size={12} /> Solo lectura</span>}
       </PageHeader>
 
@@ -120,7 +120,7 @@ export default function Inventario() {
               <tbody>
                 {filteredIngs.map((i) => (
                   <tr key={i.id} className={`border-t border-line hover:bg-cream/60 ${i.stock <= i.min_stock ? "bg-berry-soft/30" : ""}`}>
-                    <td className="px-4 py-2.5"><div className="flex items-center gap-3">{i.image ? <img src={i.image} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-sky-soft text-sky grid place-items-center shrink-0"><Boxes size={19} /></div>}<div className="font-extrabold">{i.name}<div className="text-[11px] text-muted font-bold">usado en {i.used_in} producto{i.used_in === 1 ? "" : "s"}</div></div></div></td>
+                    <td className="px-4 py-2.5"><div className="flex items-center gap-3">{i.image ? <img src={i.image} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-sky-soft text-sky grid place-items-center shrink-0"><Boxes size={19} /></div>}<div className="font-extrabold">{i.name}{i.is_topping && <span className="ml-2 align-middle pill bg-peach-soft text-peach-2 text-[10px]">Complemento</span>}<div className="text-[11px] text-muted font-bold">usado en {i.used_in} producto{i.used_in === 1 ? "" : "s"}</div></div></div></td>
                     <td className="px-4 py-2.5 font-semibold text-muted">{i.supplier || "—"}</td>
                     <td className="px-4 py-2.5"><div className="font-black">{num(i.stock, 2)} {i.unit}</div><Bar stock={i.stock} min={i.min_stock} /></td>
                     <td className="px-4 py-2.5 font-bold text-muted">{num(i.min_stock, 2)} {i.unit}</td>
@@ -204,6 +204,10 @@ export default function Inventario() {
             <Field label="Stock actual"><input className="input" type="number" step="any" value={edit.stock ?? 0} onChange={(e) => setEdit({ ...edit, stock: Number(e.target.value) })} /></Field>
             <Field label="Stock mínimo" hint="Alerta cuando baje de este valor"><input className="input" type="number" step="any" value={edit.min_stock ?? 0} onChange={(e) => setEdit({ ...edit, min_stock: Number(e.target.value) })} /></Field>
             <Field label="Proveedor" className="col-span-2"><input className="input" value={edit.supplier || ""} onChange={(e) => setEdit({ ...edit, supplier: e.target.value })} /></Field>
+            <div className="col-span-2 mt-1 flex items-start gap-3 rounded-2xl border border-line p-3">
+              <button type="button" role="switch" aria-checked={!!edit.is_topping} onClick={() => setEdit({ ...edit, is_topping: !edit.is_topping })} className={`shrink-0 w-11 h-6.5 rounded-full transition-colors relative ${edit.is_topping ? "bg-mint" : "bg-cream-2"}`}><span className={`absolute top-0.5 left-0.5 w-5.5 h-5.5 rounded-full bg-white shadow-md transition-transform ${edit.is_topping ? "translate-x-4.5" : ""}`} /></button>
+              <div><div className="font-extrabold text-sm">Es complemento</div><div className="text-xs text-muted font-semibold mt-0.5">Aparecerá en la sección "Sabores y adicionales" de los productos para añadirselo al vender.</div></div>
+            </div>
           </div>
         )}
       </Modal>

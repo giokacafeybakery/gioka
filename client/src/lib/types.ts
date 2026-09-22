@@ -17,7 +17,7 @@ export interface Product {
   category_name?: string; category_emoji?: string; category_color?: string; recipe: RecipeLine[]; options: OptionGroup[];
 }
 
-export interface Ingredient { id: number; name: string; image: string | null; unit: string; stock: number; min_stock: number; cost: number; supplier: string; used_in?: number }
+export interface Ingredient { id: number; name: string; image: string | null; unit: string; stock: number; min_stock: number; cost: number; supplier: string; is_topping?: boolean; used_in?: number }
 
 export type OrderType = "takeaway" | "delivery" | "dinein";
 export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";

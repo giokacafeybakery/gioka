@@ -193,14 +193,14 @@ export async function adjustStock(input: StockAdjust): Promise<Done<unknown>> {
   }, local, () => bus.emit("stock:updated", { item_type: input.item_type, item: null }));
 }
 
-export async function createIngredient(body: { name: string; image?: string | null; unit?: string; stock?: number; min_stock?: number; cost?: number; supplier?: string; photo?: string | null }): Promise<Done<Ingredient>> {
+export async function createIngredient(body: { name: string; image?: string | null; unit?: string; stock?: number; min_stock?: number; cost?: number; supplier?: string; is_topping?: boolean; photo?: string | null }): Promise<Done<Ingredient>> {
   const user = me();
   if (!body.name?.trim()) throw new ApiError(400, "Nombre requerido");
   const stock = Number(body.stock || 0);
   if (user.role === "inventario" && stock !== 0 && !body.photo) throw new ApiError(400, "Adjunta la foto del comprobante del stock inicial");
   const at = nowISO();
   const id = uuid();
-  const clean = { name: body.name.trim(), image: body.image || null, unit: body.unit || "u", stock, min_stock: Number(body.min_stock || 0), cost: Number(body.cost || 0), supplier: body.supplier || "" };
+  const clean = { name: body.name.trim(), image: body.image || null, unit: body.unit || "u", stock, min_stock: Number(body.min_stock || 0), cost: Number(body.cost || 0), supplier: body.supplier || "", is_topping: !!body.is_topping };
   const local: Ingredient = { id: -Date.now(), client_id: id, ...clean, used_in: 0, pending: true };
   return perform<Ingredient>({ id, kind: "ingredient.create", at, user: { id: user.id, name: user.name }, label: `Nuevo insumo · ${clean.name}`, body: clean, local, photo: stock !== 0 ? body.photo || null : null }, local,
     () => bus.emit("stock:updated", { item_type: "ingredient", item: null }));
