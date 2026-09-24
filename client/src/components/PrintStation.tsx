@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Printer, Wifi, Check } from "lucide-react";
 import { Modal, Toggle } from "./ui";
 import { printOrder } from "./Receipt";
 import { usePrintStation, isLocalOrder, claimPrint } from "@/lib/printStation";
 import { useSocket } from "@/lib/socket";
+import { api } from "@/lib/api";
 import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { toast } from "@/store/toast";
@@ -18,24 +19,68 @@ export const canPrint = (role?: string) => role === "admin" || role === "cajero"
  *
  * En modo "red" no hace falta: el servidor manda el ESC/POS a la impresora al crear el pedido.
  */
+/** Cada cuánto se revisan los pedidos activos por si un evento en vivo no llegó. */
+const CATCH_UP_MS = 60_000;
+
 export function usePrintStationWatch() {
   const role = useAuth((s) => s.user?.role);
   const cfg = usePrintStation((s) => s.cfg);
   const settings = useSettings((s) => s.settings);
   const active = canPrint(role) && cfg.enabled && settings?.printer_mode !== "network";
+  // El handler del socket se registra una sola vez: lee la configuración por referencia.
+  const cfgRef = useRef(cfg); cfgRef.current = cfg;
+  const activeRef = useRef(active); activeRef.current = active;
 
-  useSocket({
-    "order:created": (order: Order) => {
-      if (!active || !order?.items?.length) return;
-      if (isLocalOrder(order)) return;                              // lo tomó este mismo dispositivo
-      if (cfg.onlyWaiter && order.user_role !== "mesero") return;
-      if (!cfg.kitchen && !cfg.ticket) return;
-      if (!claimPrint(order)) return;
-      if (cfg.kitchen) printOrder(order, { kitchen: true, silent: true });
-      if (cfg.ticket) printOrder(order, { silent: true });
-      toast.info(`Comanda #${order.daily_number} impresa`, order.user_name ? `Pedido de ${order.user_name}` : undefined);
-    },
-  }, [active, cfg.kitchen, cfg.ticket, cfg.onlyWaiter]);
+  /** Imprime el pedido si le toca a este dispositivo (una sola vez, venga del evento o del repaso). */
+  const consider = (order: Order) => {
+    const c = cfgRef.current;
+    if (!activeRef.current || !order?.items?.length) return;
+    if (isLocalOrder(order)) return;                              // lo tomó este mismo dispositivo
+    if (c.onlyWaiter && order.user_role !== "mesero") return;
+    if (!c.kitchen && !c.ticket) return;
+    if (!claimPrint(order)) return;
+    if (c.kitchen) printOrder(order, { kitchen: true, silent: true });
+    if (c.ticket) printOrder(order, { silent: true });
+    toast.info(`Comanda #${order.daily_number} impresa`, order.user_name ? `Pedido de ${order.user_name}` : undefined);
+  };
+
+  useSocket({ "order:created": consider }, []);
+
+  // Red de seguridad para una estación que queda abierta todo el día: si el evento en vivo no llegó
+  // (corte de internet, Realtime sin configurar, pestaña dormida por el navegador), cada minuto se
+  // repasan los pedidos activos y se imprime lo que falte. Solo cuenta lo creado desde que se encendió
+  // la estación, así encenderla a media jornada no escupe el historial.
+  useEffect(() => {
+    if (!active) return;
+    const since = Date.now();
+    let alive = true;
+    const catchUp = async () => {
+      try {
+        const orders = await api.get<Order[]>("/api/orders?active=1");
+        if (!alive) return;
+        orders
+          .filter((o) => new Date(o.created_at).getTime() >= since)
+          .sort((a, b) => a.created_at.localeCompare(b.created_at))
+          .forEach(consider);
+      } catch { /* sin conexión: el evento llegará al reconectar */ }
+    };
+    const h = setInterval(catchUp, CATCH_UP_MS);
+    return () => { alive = false; clearInterval(h); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+}
+
+/** Comanda de prueba: verifica de una vez impresora, tamaño de papel y el modo sin diálogo de Chrome. */
+function testOrder(): Order {
+  const at = new Date().toISOString();
+  return {
+    id: 0, code: "PRUEBA", daily_number: 0, type: "takeaway", customer_name: "PRUEBA", customer_phone: "", table_no: "",
+    customer_address: "", customer_reference: "", status: "pending", payment_method: null, paid: false,
+    subtotal: 0, discount: 0, tax: 0, total: 0, cash_received: null, notes: "Comanda de prueba · no preparar",
+    user_id: 0, created_at: at, updated_at: at, paid_at: null, ready_at: null, delivered_at: null,
+    refund_method: null, refund_amount: null, refunded_at: null,
+    items: [{ product_id: null, name: "Comanda de prueba", emoji: "🧾", price: 0, qty: 1, notes: "" }],
+  };
 }
 
 /** Botón de la barra lateral: abre los ajustes de impresión de ESTE dispositivo. */
@@ -84,9 +129,15 @@ export function PrintStationButton({ className = "", light = false }: { classNam
               <Toggle checked={cfg.ticket} onChange={(v) => set({ ticket: v })} label="Ticket del cliente" />
               <Toggle checked={cfg.onlyWaiter} onChange={(v) => set({ onlyWaiter: v })} label="Solo pedidos de meseros" />
             </div>
-            <div className="mt-4 text-xs font-semibold text-muted leading-relaxed">
-              <div className="flex gap-2"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Deja esta pantalla abierta: con el navegador cerrado no hay impresión.</div>
-              <div className="flex gap-2 mt-1"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Para que no aparezca el diálogo de Windows, abre Chrome con <span className="font-mono">--kiosk-printing</span>.</div>
+            <button className="btn-soft w-full mt-4" onClick={() => printOrder(testOrder(), { kitchen: true })}>
+              <Printer size={16} /> Imprimir comanda de prueba
+            </button>
+            <div className="mt-4 rounded-2xl bg-cream p-4 text-xs font-semibold text-muted leading-relaxed">
+              <div className="flex gap-2"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Deja el navegador abierto en esta computadora: cerrado no hay impresión.</div>
+              <div className="flex gap-2 mt-1.5"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Si no reconecta solo, cada minuto revisa los pedidos y saca las comandas que falten.</div>
+              <div className="mt-3 font-black text-ink">Para que no salga el diálogo de Windows</div>
+              <div className="mt-1">Crea un acceso directo de Chrome, entra en Propiedades y deja el destino así (la impresora predeterminada de Windows debe ser la térmica):</div>
+              <code className="block mt-2 p-2 rounded-lg bg-paper border border-line text-[11px] text-ink break-all select-all">"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing</code>
             </div>
           </>
         )}
