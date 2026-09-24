@@ -124,7 +124,7 @@ export function PrintStationButton({ className = "", light = false }: { classNam
                 Actívalo solo en la computadora conectada a la impresora. Si lo activas en dos, saldrán dos copias.
               </p>
             </div>
-            <div className={`mt-3 space-y-3 transition ${cfg.enabled ? "" : "opacity-40 pointer-events-none"}`}>
+            <div className={`mt-4 flex flex-col gap-3.5 transition ${cfg.enabled ? "" : "opacity-40 pointer-events-none"}`}>
               <Toggle checked={cfg.kitchen} onChange={(v) => set({ kitchen: v })} label="Comanda de cocina" />
               <Toggle checked={cfg.ticket} onChange={(v) => set({ ticket: v })} label="Ticket del cliente" />
               <Toggle checked={cfg.onlyWaiter} onChange={(v) => set({ onlyWaiter: v })} label="Solo pedidos de meseros" />

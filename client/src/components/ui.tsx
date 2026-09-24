@@ -23,7 +23,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
   return (
     <div ref={root} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={`relative w-full ${width} bg-paper rounded-t-3xl sm:rounded-3xl shadow-pop anim-pop max-h-[92vh] flex flex-col ${flush ? "overflow-hidden" : ""}`}>
+      <div className={`relative w-full ${width} bg-paper text-ink rounded-t-3xl sm:rounded-3xl shadow-pop anim-pop max-h-[92vh] flex flex-col ${flush ? "overflow-hidden" : ""}`}>
         {(title || subtitle) && (
           <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
             <div>
