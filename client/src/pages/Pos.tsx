@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles, CloudOff, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Search, Plus, Minus, Trash2, ShoppingBag, Bike, UtensilsCrossed, ArrowLeft, Banknote, CreditCard, QrCode, Printer, ChefHat, X, StickyNote, Percent, ChevronRight, Sparkles, CloudOff, Loader2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Field, ProductThumb, Empty, Loading } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
 import { api } from "@/lib/api";
-import { createOrder, setOrderStatus } from "@/lib/actions";
+import { addOrderItems, createOrder, setOrderStatus } from "@/lib/actions";
 import { useSocket } from "@/lib/socket";
 import { money, greeting, TYPE, elapsed } from "@/lib/format";
 import type { Category, Order, OrderType, PaymentMethod, Product } from "@/lib/types";
@@ -40,6 +41,8 @@ export default function Pos() {
   const [openCash, setOpenCash] = useState(false);
   const [checkoutFor, setCheckoutFor] = useState<Order | null>(null);
   const cash = useCashSession();
+  const nav = useNavigate();
+  const [params, setParams] = useSearchParams();
 
   const loadProducts = () => api.get<Product[]>("/api/products").then(setProducts);
   const loadActive = () => isWaiter ? Promise.resolve() : api.get<Order[]>("/api/orders?active=1").then(setActive);
@@ -51,6 +54,25 @@ export default function Pos() {
     "sync:changed": () => { loadActive(); loadProducts(); },
     "stock:low": () => loadProducts(),
   });
+
+  /**
+   * Mesas → "+ Productos": se llega al PDV con `?agregar=<pedido>`. El menú es el mismo, pero lo que se elija
+   * se suma a esa cuenta como una ronda nueva en vez de crear otro pedido; al terminar se vuelve a Mesas.
+   */
+  const addTo = params.get("agregar");
+  const target = useMemo(() => (addTo ? active.find((o) => String(o.id) === addTo || (!!o.client_id && `c_${o.client_id}` === addTo)) || null : null), [active, addTo]);
+  const adding = !!addTo;
+  const round = target ? target.items.reduce((m, i) => Math.max(m, i.round || 1), 1) + 1 : 1;
+  const filledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!addTo) { filledFor.current = null; return; }
+    if (!target || filledFor.current === addTo) return;
+    // La mesa y el nombre vienen del pedido; el carrito arranca limpio para esta ronda.
+    filledFor.current = addTo;
+    cart.clear();
+    cart.set({ type: "dinein", customerName: target.customer_name, tableNo: target.table_no });
+  }, [addTo, target]); // eslint-disable-line react-hooks/exhaustive-deps
+  const exitAdding = () => { filledFor.current = null; cart.clear(); setParams({}, { replace: true }); };
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -90,6 +112,37 @@ export default function Pos() {
     finally { setBusy(false); }
   };
 
+  /** Suma lo elegido a la cuenta de la mesa (una ronda más) y vuelve al salón. */
+  const addToAccount = async () => {
+    if (!target || busy) return;
+    if (!cart.lines.length) return toast.warning("No hay productos que agregar");
+    setBusy("kitchen");
+    try {
+      const units = cart.lines.reduce((n, l) => n + l.qty, 0);
+      const { result, queued } = await addOrderItems(target, cart.lines, products || []);
+      // La cocina necesita la comanda de la ronda nueva (en modo red la imprime el servidor).
+      const last = result.items.reduce((m, i) => Math.max(m, i.round || 1), 1);
+      if (settings?.auto_print && settings.printer_mode === "browser")
+        printOrder({ ...result, items: result.items.filter((i) => (i.round || 1) === last) }, { kitchen: true, silent: true });
+      filledFor.current = null;
+      cart.clear(); setMobileCart(false);
+      toast.success(`Mesa ${target.table_no} actualizada`, `${units} ${units === 1 ? "producto añadido" : "productos añadidos"} · ${money(totals.subtotal)}`);
+      if (queued) toast.info("Guardado en este dispositivo", "Se enviará a cocina al volver la conexión.");
+      loadProducts();
+      nav("/mesas");
+    } catch (e) { toast.error("No se pudo agregar", (e as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  /** Cuenta de la mesa tal como quedará con esta ronda (misma cuenta que hace el servidor). */
+  const accountAfter = useMemo(() => {
+    if (!target) return 0;
+    const subtotal = +(target.subtotal + totals.subtotal).toFixed(2);
+    const discount = Math.min(subtotal, Math.max(0, target.discount || 0));
+    const tax = +(((subtotal - discount) * (settings?.tax_rate || 0)) / 100).toFixed(2);
+    return +(subtotal - discount + tax).toFixed(2);
+  }, [target, totals.subtotal, settings?.tax_rate]);
+
   const deliver = async (o: Order) => {
     if (o.status !== "ready") return;
     if (!o.paid) { setCheckoutFor(o); return; }
@@ -102,13 +155,31 @@ export default function Pos() {
   const OrderPanel = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <div><h2 className="text-xl font-black tracking-tight">Pedido actual</h2><p className="text-xs font-bold text-muted">{totals.count} {totals.count === 1 ? "artículo" : "artículos"}</p></div>
+        <div>
+          <h2 className="text-xl font-black tracking-tight">{adding ? `Ronda ${round}` : "Pedido actual"}</h2>
+          <p className="text-xs font-bold text-muted">{adding ? "Se enviará a cocina al agregar" : `${totals.count} ${totals.count === 1 ? "artículo" : "artículos"}`}</p>
+        </div>
         <div className="flex gap-1">
           {cart.lines.length > 0 && <button className="btn-icon btn-ghost text-berry" onClick={() => cart.clear()} title="Vaciar"><Trash2 size={18} /></button>}
           <button className="btn-icon btn-ghost lg:hidden" onClick={() => setMobileCart(false)}><X size={20} /></button>
         </div>
       </div>
 
+      {adding ? (
+        <div className="px-5 pb-3">
+          <div className="rounded-2xl bg-ink text-white px-3.5 py-3 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white/10 grid place-content-center shrink-0">
+              <span className="block text-[8px] font-extrabold uppercase tracking-[0.18em] text-white/50 text-center">Mesa</span>
+              <span className="block text-base font-black leading-none text-center">{target?.table_no || "—"}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold text-sm truncate">{target?.customer_name || "Sin nombre"}</div>
+              <div className="text-[11px] font-bold text-white/60 truncate">Pedido #{target?.daily_number} · cuenta {money(target?.total || 0)}</div>
+            </div>
+            <button onClick={exitAdding} className="w-8 h-8 rounded-lg grid place-items-center text-white/60 hover:text-white hover:bg-white/10 shrink-0" title="Salir de la mesa"><X size={18} /></button>
+          </div>
+        </div>
+      ) : (
       <div className="px-5 pb-3">
         <div className="grid grid-cols-3 gap-1.5 bg-cream rounded-xl p-1">
           {(["takeaway", "delivery", "dinein"] as OrderType[]).map((t) => (
@@ -130,6 +201,7 @@ export default function Pos() {
           </div>
         )}
       </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-5 min-h-0">
         {cart.lines.length === 0 ? (
@@ -163,7 +235,22 @@ export default function Pos() {
       </div>
 
       <div className="border-t border-line px-5 pt-4 pb-5">
-        {isWaiter ? (
+        {adding ? (
+          <>
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-[13px] font-extrabold text-muted">{totals.count} {totals.count === 1 ? "producto nuevo" : "productos nuevos"}</span>
+              <span className="text-xl font-black">{money(totals.subtotal)}</span>
+            </div>
+            <div className="flex items-baseline justify-between text-[13px] font-bold text-muted mb-3">
+              <span>Cuenta de la mesa</span>
+              <span className="text-ink">{money(target?.total || 0)} → <span className="text-peach-2">{money(accountAfter)}</span></span>
+            </div>
+            <button className="btn-primary btn-lg w-full" disabled={!!busy || !cart.lines.length || !target} aria-busy={busy === "kitchen"} onClick={() => void addToAccount()}>
+              {busy === "kitchen" ? <><Loader2 size={20} className="animate-spin" /> Agregando…</> : <><Plus size={20} /> Agregar a la cuenta</>}
+            </button>
+            <p className="text-center text-xs font-bold text-muted mt-2">Se suma al pedido de la mesa; el cobro se hace en Mesas.</p>
+          </>
+        ) : isWaiter ? (
           <>
             <div className="flex justify-between items-baseline mb-3"><span className="font-black">Total del pedido</span><span className="text-2xl font-black">{money(totals.total)}</span></div>
             <button className="btn-primary btn-lg w-full" disabled={!!busy || !cart.lines.length} aria-busy={busy === "kitchen"} onClick={() => submit(false)}>
@@ -215,17 +302,24 @@ export default function Pos() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 flex flex-col">
-        <PageHeader title={<>{greeting()}, {user?.name.split(" ")[0]} <span className="anim-wiggle inline-block">👋</span></>} subtitle={isWaiter ? "Toma el pedido y envíalo directamente a cocina." : "Gestiona los pedidos de tus clientes fácilmente."}>
+        <PageHeader
+          title={adding
+            ? <span className="flex items-center gap-2">
+                <button onClick={() => { exitAdding(); nav("/mesas"); }} className="btn-icon btn-ghost -ml-2 w-9 h-9" title="Volver a Mesas"><ArrowLeft size={20} /></button>
+                Mesa {target?.table_no || "…"}
+              </span>
+            : <>{greeting()}, {user?.name.split(" ")[0]} <span className="anim-wiggle inline-block">👋</span></>}
+          subtitle={adding ? `Agregando la ronda ${round} a la cuenta${target?.customer_name ? ` de ${target.customer_name}` : ""} · se enviará a cocina` : isWaiter ? "Toma el pedido y envíalo directamente a cocina." : "Gestiona los pedidos de tus clientes fácilmente."}>
           <div className="relative w-full sm:w-72">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
             <input className="input pl-10 rounded-full" placeholder="Buscar producto…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </PageHeader>
 
-        {cash === null && !isWaiter ? <CashClosedNotice onOpen={() => setOpenCash(true)} /> : (
+        {cash === null && !isWaiter && !adding ? <CashClosedNotice onOpen={() => setOpenCash(true)} /> : (
         <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-24 lg:pb-6">
           {/* The POS only hands over orders. Kitchen progress belongs to the Pedidos screen. */}
-          {!isWaiter && <section className="mb-6 rounded-3xl border border-mint/20 bg-mint-soft/45 p-3.5 md:p-4">
+          {!isWaiter && !adding && <section className="mb-6 rounded-3xl border border-mint/20 bg-mint-soft/45 p-3.5 md:p-4">
             <div className="flex items-center gap-3 mb-3 px-1">
               <div className="w-9 h-9 rounded-xl bg-mint text-white grid place-items-center shadow-soft"><ChefHat size={18} /></div>
               <div className="min-w-0">

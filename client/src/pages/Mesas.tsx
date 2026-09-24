@@ -4,7 +4,6 @@ import { UtensilsCrossed, Plus, Clock, Users, Printer, CloudOff, Wallet, Chevron
 import { PageHeader } from "@/components/AppShell";
 import { Modal, Empty, Loading } from "@/components/ui";
 import { printOrder } from "@/components/Receipt";
-import { AddItemsSheet } from "@/components/AddItemsSheet";
 import { ChargeTableModal } from "@/components/ChargeTableModal";
 import { OpenCashModal, useCashSession } from "@/components/OpenCash";
 import { api } from "@/lib/api";
@@ -12,6 +11,7 @@ import { useSocket } from "@/lib/socket";
 import { money, elapsed, time } from "@/lib/format";
 import { itemLabel, optionsSummary } from "@/lib/options";
 import { accountItems, accountRounds, tableAccounts, type TableAccount } from "@/lib/tables";
+import { refOf, refPath } from "@/lib/offline/queue";
 import type { Order } from "@/lib/types";
 import { useCart } from "@/store/cart";
 import { toast } from "@/store/toast";
@@ -30,9 +30,8 @@ export default function Mesas() {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<string | null>(null);
-  // Agregar y cobrar guardan la cuenta tal como estaba al abrirse: al cobrarla desaparece del salón y
-  // la pantalla de confirmación seguiría dependiendo de una mesa que ya no existe.
-  const [adding, setAdding] = useState<TableAccount | null>(null);
+  // Cobrar guarda la cuenta tal como estaba al abrirse: al cobrarla desaparece del salón y la pantalla
+  // de confirmación seguiría dependiendo de una mesa que ya no existe.
   const [charging, setCharging] = useState<TableAccount | null>(null);
   const [openCash, setOpenCash] = useState(false);
   const [, tick] = useState(0);
@@ -58,6 +57,11 @@ export default function Mesas() {
   const salon = +accounts.reduce((s, a) => s + a.total, 0).toFixed(2);
 
   const newTable = () => { cart.set({ type: "dinein" }); nav("/pos"); };
+  /** Seguir pidiendo: se abre el PDV sobre el último pedido de la mesa, con la mesa y el nombre ya puestos. */
+  const addProducts = (a: TableAccount) => {
+    const order = a.orders.at(-1);
+    if (order) nav(`/pos?agregar=${refPath(refOf(order))}`);
+  };
   const printBill = async (a: TableAccount) => {
     toast.info("Imprimiendo la cuenta", `Mesa ${a.table} · ${money(a.total)}`);
     for (const o of a.orders) await printOrder(o);
@@ -143,7 +147,7 @@ export default function Mesas() {
                       <div className="text-[22px] font-black leading-none mt-0.5">{money(a.total)}</div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="btn btn-sm btn-soft" onClick={() => setAdding(a)}><Plus size={15} /> Productos</button>
+                      <button className="btn btn-sm btn-soft" onClick={() => addProducts(a)}><Plus size={15} /> Productos</button>
                       <button className="btn btn-sm btn-dark px-4" disabled={cash === null} onClick={() => setCharging(a)} title={cash === null ? "Abre la caja para cobrar" : "Cobrar la mesa"}>Cobrar</button>
                     </div>
                   </div>
@@ -219,7 +223,7 @@ export default function Mesas() {
                 <div className="flex justify-between items-baseline pt-1"><span className="text-ink font-black">Total</span><span className="text-2xl font-black text-ink">{money(detailAccount.total)}</span></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button className="btn-soft" onClick={() => { setAdding(detailAccount); setDetail(null); }}><Plus size={18} /> Agregar productos</button>
+                <button className="btn-soft" onClick={() => addProducts(detailAccount)}><Plus size={18} /> Agregar productos</button>
                 <button className="btn-primary" disabled={cash === null} onClick={() => { setCharging(detailAccount); setDetail(null); }}><ReceiptText size={18} /> Cobrar mesa</button>
               </div>
               <button className="btn-ghost w-full mt-2 text-sm" onClick={() => void printBill(detailAccount)}><Printer size={16} /> Imprimir la cuenta</button>
@@ -228,7 +232,6 @@ export default function Mesas() {
         )}
       </Modal>
 
-      <AddItemsSheet account={adding} onClose={() => setAdding(null)} onDone={(order) => { applyOrders([order]); void load(); }} />
       <ChargeTableModal account={charging} onClose={() => setCharging(null)} onDone={(paid) => { applyOrders(paid); void load(); }} />
       <OpenCashModal open={openCash} onClose={() => setOpenCash(false)} />
     </div>
