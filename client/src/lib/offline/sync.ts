@@ -22,6 +22,8 @@ export function requestFor(op: Op, offline: boolean): { method: string; url: str
       return { method: "POST", url: `/api/orders/${refPath(op.target)}/pay`, body: { ...common, payment_method: op.payment_method, cash_received: op.cash_received } };
     case "order.status":
       return { method: "PATCH", url: `/api/orders/${refPath(op.target)}/status`, body: { ...common, status: op.status } };
+    case "order.items":
+      return { method: "POST", url: `/api/orders/${refPath(op.target)}/items`, body: { ...common, items: op.items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price, options: i.options })) } };
     case "cash.open":
       return { method: "POST", url: "/api/cash/open", body: { ...common, client_id: op.id, opened_at: op.at, opening_amount: op.opening_amount, notes: op.notes } };
     case "cash.close":

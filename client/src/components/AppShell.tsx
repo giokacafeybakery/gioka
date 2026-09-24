@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { ShoppingBag, ChefHat, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell, Smartphone } from "lucide-react";
+import { ShoppingBag, ChefHat, UtensilsCrossed, Wallet, Boxes, BarChart3, Settings2, MonitorPlay, LogOut, Bell, Smartphone } from "lucide-react";
 import { PandaMark, Wordmark } from "./Logo";
 import { Confirm } from "./ui";
 import { useAuth } from "@/store/auth";
@@ -44,6 +44,7 @@ export default function AppShell() {
   const items: NavItem[] = ([
     { to: "/pos", label: "Tomar pedido", short: "Pedido", icon: <ShoppingBag size={22} />, roles: ["admin", "cajero", "mesero"] },
     { to: "/pedidos", label: "Pedidos", short: "Pedidos", icon: <ChefHat size={22} />, roles: ["admin", "cajero", "cocina"] },
+    { to: "/mesas", label: "Mesas", short: "Mesas", icon: <UtensilsCrossed size={22} />, roles: ["admin", "cajero"] },
     { to: "/caja", label: "Caja", short: "Caja", icon: <Wallet size={22} />, roles: ["admin", "cajero"] },
     { to: "/inventario", label: "Inventario", short: "Stock", icon: <Boxes size={22} />, roles: ["admin"], badge: low },
     { to: "/reportes", label: "Reportes", short: "Reportes", icon: <BarChart3 size={22} />, roles: ["admin"] },

@@ -1,6 +1,6 @@
 import { cachePeek } from "./cache";
 import { pendingOps, refMatches, refPath, type Op } from "./queue";
-import type { CashSession, Ingredient, LowStock, Order, Product } from "@/lib/types";
+import type { CashSession, Ingredient, LowStock, Order, OrderItem, Product } from "@/lib/types";
 import type { Movement } from "@/app/store";
 
 /**
@@ -21,6 +21,8 @@ function knownOrders(ops: Op[]): Order[] {
   return [...seen.values()];
 }
 const findOrder = (ops: Op[], target: Parameters<typeof refMatches>[1]) => knownOrders(ops).find((o) => refMatches(o, target));
+/** Total of an order including the rounds added on this device that are still waiting to be sent. */
+const localTotal = (o: Order, ops: Op[]) => ops.reduce((t, x) => (x.kind === "order.items" && refMatches(o, x.target) ? x.totals.total : t), o.total);
 
 /** Net stock change per item ("product-12", "ingredient-3", "ingredient-c_<uuid>") caused by the pending ops. */
 export function stockDeltas(ops: Op[] = pendingOps()): Map<string, number> {
@@ -28,8 +30,8 @@ export function stockDeltas(ops: Op[] = pendingOps()): Map<string, number> {
   const byId = new Map(products.map((p) => [p.id, p]));
   const d = new Map<string, number>();
   const add = (k: string, v: number) => d.set(k, +((d.get(k) || 0) + v).toFixed(4));
-  const applyOrder = (o: Order, dir: 1 | -1) => {
-    for (const it of o.items) {
+  const applyItems = (items: OrderItem[], dir: 1 | -1) => {
+    for (const it of items) {
       const p = it.product_id != null ? byId.get(it.product_id) : undefined;
       if (!p) continue;
       if (p.track_stock) add(`product-${p.id}`, dir * it.qty);
@@ -37,8 +39,10 @@ export function stockDeltas(ops: Op[] = pendingOps()): Map<string, number> {
       for (const opt of it.options || []) if (Number(opt.ingredient_id) > 0 && Number(opt.qty) > 0) add(`ingredient-${opt.ingredient_id}`, dir * Number(opt.qty) * it.qty);
     }
   };
+  const applyOrder = (o: Order, dir: 1 | -1) => applyItems(o.items, dir);
   for (const op of ops) {
     if (op.kind === "order.create") applyOrder(op.local, -1);
+    else if (op.kind === "order.items") applyItems(op.items, -1);
     else if (op.kind === "order.status" && op.status === "cancelled") { const o = findOrder(ops, op.target); if (o && o.status !== "cancelled") applyOrder(o, 1); }
     else if (op.kind === "stock.adjust") add(`${op.item_type}-${refPath(op.target)}`, op.set ? op.qty - op.base_stock : op.qty);
   }
@@ -67,6 +71,10 @@ export function projectOrders(list: Order[], query: URLSearchParams, ops = pendi
   for (const op of ops) {
     if (op.kind === "order.create") { if (!out.some((o) => o.client_id === op.id)) out.unshift({ ...op.local, pending: true }); }
     else if (op.kind === "order.pay") out = out.map((o) => (refMatches(o, op.target) && !o.paid ? { ...o, paid: true, payment_method: op.payment_method, cash_received: op.cash_received, paid_at: op.at, updated_at: op.at, pending: true } : o));
+    // Mesas: la ronda nueva se suma a la cuenta y lo que estaba listo vuelve a la cola de cocina.
+    else if (op.kind === "order.items") out = out.map((o) => (refMatches(o, op.target) && !o.paid
+      ? { ...o, items: [...o.items, ...op.items], ...op.totals, status: o.status === "ready" ? "pending" : o.status, ready_at: o.status === "ready" ? null : o.ready_at, updated_at: op.at, pending: true }
+      : o));
     else if (op.kind === "order.status") out = out.map((o) => (refMatches(o, op.target) && o.status !== "cancelled" ? { ...o, status: op.status, updated_at: op.at, ready_at: op.status === "ready" ? op.at : o.ready_at, delivered_at: op.status === "delivered" ? op.at : o.delivered_at, pending: true } : o));
   }
   const status = query.get("status")?.split(",").filter(Boolean);
@@ -104,7 +112,8 @@ function withLocalTotals(s: CashSession, ops: Op[]): CashSession {
   const count = (o: { total: number; payment_method: string | null }) => { const m = (o.payment_method || "cash") as "cash" | "card" | "qr"; totals[m] = +((totals[m] || 0) + o.total).toFixed(2); totals.orders += 1; totals.revenue = +(totals.revenue + o.total).toFixed(2); };
   for (const op of ops) {
     if (op.kind === "order.create" && op.local.paid && op.at >= s.opened_at) count(op.local);
-    else if (op.kind === "order.pay" && op.at >= s.opened_at) { const o = findOrder(ops, op.target); if (o && !o.paid) count({ total: o.total, payment_method: op.payment_method }); }
+    // El total del pedido puede haber crecido con rondas que tampoco se han enviado todavía (mesas).
+    else if (op.kind === "order.pay" && op.at >= s.opened_at) { const o = findOrder(ops, op.target); if (o && !o.paid) count({ total: localTotal(o, ops), payment_method: op.payment_method }); }
   }
   return { ...s, totals, expected_cash: +(s.opening_amount + totals.cash).toFixed(2) };
 }
@@ -130,7 +139,7 @@ export function projectCashHistory(list: CashSession[], ops = pendingOps()): Cas
 }
 
 export function projectLow(low: LowStock, ops = pendingOps()): LowStock {
-  if (!ops.some((o) => o.kind === "order.create" || o.kind === "stock.adjust" || o.kind === "order.status" || o.kind === "ingredient.create")) return low;
+  if (!ops.some((o) => o.kind === "order.create" || o.kind === "order.items" || o.kind === "stock.adjust" || o.kind === "order.status" || o.kind === "ingredient.create")) return low;
   const products = cachePeek<Product[]>("/api/products?all=1") || cachePeek<Product[]>("/api/products");
   const ingredients = cachePeek<Ingredient[]>("/api/inventory/ingredients");
   return {

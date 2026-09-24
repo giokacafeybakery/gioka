@@ -94,6 +94,27 @@ export function pickOptions(product, selected, lenient = false) {
   return out;
 }
 
+/**
+ * Turn the items of a request into order lines: validates the product, its stock and the chosen options, and
+ * resolves the unit price (catalogue price + extras). On an offline replay the device's own price is kept.
+ */
+async function buildItems(list, replay) {
+  const items = [];
+  for (const it of Array.isArray(list) ? list : []) {
+    const p = await get("SELECT * FROM products WHERE id=?", id(it.product_id));
+    if (!p || (!p.active && !replay)) throw Object.assign(new Error("Producto no disponible"), { status: 400 });
+    const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
+    if (!replay && p.track_stock && p.stock < qty) throw Object.assign(new Error(`Stock insuficiente de ${p.name} (quedan ${p.stock})`), { status: 400 });
+    // Sabores / adicionales chosen at the register; the unit price includes their extras.
+    const options = pickOptions(p, it.options, replay);
+    const extras = options.reduce((s, c) => s + c.price, 0);
+    // Offline devices sell at the price they saw; online the catalogue is authoritative.
+    const price = replay && Number.isFinite(Number(it.price)) ? Number(it.price) : +(p.price + extras).toFixed(2);
+    items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || ""), options });
+  }
+  return items;
+}
+
 const publicView = (o) => o && ({
   code: o.code, daily_number: o.daily_number, status: o.status, type: o.type, customer_name: o.customer_name,
   created_at: o.created_at, ready_at: o.ready_at, delivered_at: o.delivered_at, total: o.total, paid: o.paid,
@@ -212,19 +233,7 @@ export default function ordersRoutes() {
     const custErr = customerError(b.type, b);
     if (custErr && !replay) return res.status(400).json({ error: custErr });
 
-    const items = [];
-    for (const it of b.items) {
-      const p = await get("SELECT * FROM products WHERE id=?", id(it.product_id));
-      if (!p || (!p.active && !replay)) throw Object.assign(new Error("Producto no disponible"), { status: 400 });
-      const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
-      if (!replay && p.track_stock && p.stock < qty) throw Object.assign(new Error(`Stock insuficiente de ${p.name} (quedan ${p.stock})`), { status: 400 });
-      // Sabores / adicionales chosen at the register; the unit price includes their extras.
-      const options = pickOptions(p, it.options, replay);
-      const extras = options.reduce((s, c) => s + c.price, 0);
-      // Offline devices sell at the price they saw; online the catalogue is authoritative.
-      const price = replay && Number.isFinite(Number(it.price)) ? Number(it.price) : +(p.price + extras).toFixed(2);
-      items.push({ product_id: p.id, name: p.name, emoji: p.emoji, price, qty, notes: String(it.notes || ""), options });
-    }
+    const items = await buildItems(b.items, replay);
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = waiterOrder ? 0 : Math.min(subtotal, Math.max(0, Number(b.discount || 0)));
     const tax = +(((subtotal - discount) * (Number(settings.tax_rate) || 0)) / 100).toFixed(2);
@@ -259,6 +268,49 @@ export default function ordersRoutes() {
       if (!waiterOrder) networkPrint(order, settings, false);
       networkPrint(order, settings, true);
     }
+    res.json(order);
+  });
+
+  /**
+   * Mesas: el cliente sigue pidiendo, así que la cuenta abierta crece con una ronda más.
+   * Los productos nuevos se suman al mismo pedido (misma cuenta, mismo ticket), se recalculan los totales,
+   * se descuenta su stock y la cocina vuelve a verlo pendiente para preparar lo que acaba de entrar.
+   */
+  r.post("/:id/items", async (req, res) => {
+    if (!["admin", "cajero"].includes(req.user.role)) return res.status(403).json({ error: "Sin permisos" });
+    const o = await loadOrder(req.params.id);
+    if (!o) return res.status(404).json({ error: "No existe" });
+    // Idempotent: the same operation replayed (retry, offline queue) does not add the round twice.
+    const cid = clientId(req.body.op_id);
+    if (cid && (await get("SELECT 1 FROM order_items WHERE order_id=? AND client_id=?", o.id, cid))) return res.json(o);
+    if (o.paid) return res.status(400).json({ error: "La cuenta ya está pagada" });
+    if (["cancelled", "refunded"].includes(o.status)) return res.status(400).json({ error: "El pedido ya está cerrado" });
+    if (!Array.isArray(req.body.items) || !req.body.items.length) return res.status(400).json({ error: "No hay productos que agregar" });
+    const replay = !!(cid && req.body.offline);
+    const t = replay ? clientTime(req.body.at) : now();
+    const settings = await getSettings();
+    const items = await buildItems(req.body.items, replay);
+
+    await transaction(async () => {
+      const round = (((await get("SELECT COALESCE(MAX(round),1) AS m FROM order_items WHERE order_id=?", o.id)).m) || 1) + 1;
+      for (const it of items)
+        await run("INSERT INTO order_items(order_id,product_id,name,emoji,price,qty,notes,options,round,added_at,client_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+          o.id, it.product_id, it.name, it.emoji, it.price, it.qty, it.notes, JSON.stringify(it.options), round, t, cid);
+      const full = await loadOrder(o.id);
+      const subtotal = +full.items.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2);
+      const discount = Math.min(subtotal, Math.max(0, Number(o.discount) || 0));
+      const tax = +(((subtotal - discount) * (Number(settings.tax_rate) || 0)) / 100).toFixed(2);
+      const total = +(subtotal - discount + tax).toFixed(2);
+      // Lo que ya estaba listo vuelve a la cola de cocina: hay platos nuevos que preparar.
+      const status = o.status === "ready" ? "pending" : o.status;
+      await run("UPDATE orders SET subtotal=?, discount=?, tax=?, total=?, status=?, ready_at=CASE WHEN ?::text='pending' THEN NULL ELSE ready_at END, updated_at=? WHERE id=?",
+        subtotal, discount, tax, total, status, status, t, o.id);
+      await applyStock({ id: o.id, items }, -1, req.user.id, t);
+    });
+    const order = await loadOrder(o.id);
+    emit("order:updated", order);
+    // La comanda de la ronda nueva lleva solo lo que se acaba de pedir.
+    if (settings.auto_print && !replay) networkPrint({ ...order, items }, settings, true);
     res.json(order);
   });
 

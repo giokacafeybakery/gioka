@@ -246,6 +246,12 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_reference TEXT NOT NULL DEF
 -- Sabores y adicionales: grupos de opciones del producto (JSON) y la selección guardada en cada línea del pedido.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
+-- Mesas: una cuenta abierta crece por rondas (el cliente sigue pidiendo). Cada línea guarda su ronda, cuándo se
+-- añadió y el id de la operación que la creó (idempotencia al reenviar la cola offline).
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS round INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS added_at TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS client_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_order_items_client ON order_items(order_id, client_id);
 -- Devolución / reembolso: registra cómo se devolvió el dinero al cliente.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_method TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_amount DOUBLE PRECISION;

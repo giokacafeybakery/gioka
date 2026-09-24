@@ -14,6 +14,7 @@ import { homeFor } from "@/lib/nav";
 // Every screen is its own chunk: the phone only downloads the mobile app, the POS only the POS, etc.
 const Pos = lazy(() => import("@/pages/Pos"));
 const Pedidos = lazy(() => import("@/pages/Pedidos"));
+const Mesas = lazy(() => import("@/pages/Mesas"));
 const Caja = lazy(() => import("@/pages/Caja"));
 const Inventario = lazy(() => import("@/pages/Inventario"));
 const Admin = lazy(() => import("@/pages/Admin"));
@@ -83,6 +84,7 @@ export default function App() {
                   <Route path="/pos" element={<Pos />} />
                 </Route>
                 <Route element={<Guard roles={["admin", "cajero"]} />}>
+                  <Route path="/mesas" element={<Mesas />} />
                   <Route path="/caja" element={<Caja />} />
                 </Route>
                 <Route element={<Guard roles={["admin", "cajero", "cocina"]} />}>

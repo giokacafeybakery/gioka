@@ -23,8 +23,9 @@ export type OrderType = "takeaway" | "delivery" | "dinein";
 export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";
 export type PaymentMethod = "cash" | "card" | "qr";
 
-/** `price` is the unit price already including the extras of `options`. */
-export interface OrderItem { id?: number; product_id: number | null; name: string; emoji: string; price: number; qty: number; notes: string; options?: SelectedOption[] }
+/** `price` is the unit price already including the extras of `options`.
+ *  `round` is the round the line belongs to: 1 = el pedido original, 2+ = lo que se añadió después a la cuenta de la mesa. */
+export interface OrderItem { id?: number; product_id: number | null; name: string; emoji: string; price: number; qty: number; notes: string; options?: SelectedOption[]; round?: number; added_at?: string | null }
 export interface Order {
   id: number; code: string; daily_number: number; type: OrderType; customer_name: string; customer_phone: string; table_no: string;
   customer_address: string; customer_reference: string;

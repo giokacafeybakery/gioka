@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CloudOff, RefreshCw, CloudUpload, CheckCircle2, AlertTriangle, Trash2, RotateCcw, Wifi, ShoppingBag, Banknote, ChefHat, Wallet, Boxes, PackagePlus } from "lucide-react";
+import { CloudOff, RefreshCw, CloudUpload, CheckCircle2, AlertTriangle, Trash2, RotateCcw, Wifi, ShoppingBag, Banknote, ChefHat, UtensilsCrossed, Wallet, Boxes, PackagePlus } from "lucide-react";
 import { Modal } from "./ui";
 import { useNet, probe } from "@/lib/offline/net";
 import { useQueue, type Op } from "@/lib/offline/queue";
@@ -23,7 +23,7 @@ export function useSyncSummary() {
 }
 
 const ICON: Record<Op["kind"], React.ReactNode> = {
-  "order.create": <ShoppingBag size={16} />, "order.pay": <Banknote size={16} />, "order.status": <ChefHat size={16} />,
+  "order.create": <ShoppingBag size={16} />, "order.pay": <Banknote size={16} />, "order.status": <ChefHat size={16} />, "order.items": <UtensilsCrossed size={16} />,
   "cash.open": <Wallet size={16} />, "cash.close": <Wallet size={16} />, "stock.adjust": <Boxes size={16} />, "ingredient.create": <PackagePlus size={16} />,
 };
 

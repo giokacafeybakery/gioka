@@ -4,7 +4,7 @@ import { useSettings } from "@/store/settings";
 import { useCash } from "@/store/cash";
 import { cartTotals, lineUnitPrice, type CartLine } from "@/store/cart";
 import { money } from "@/lib/format";
-import type { CashSession, Ingredient, Order, OrderStatus, OrderType, PaymentMethod, Product, User } from "@/lib/types";
+import type { CashSession, Ingredient, Order, OrderItem, OrderStatus, OrderType, PaymentMethod, Product, User } from "@/lib/types";
 import type { Movement } from "@/app/store";
 import { useNet } from "@/lib/offline/net";
 import { bus } from "@/lib/offline/bus";
@@ -140,6 +140,66 @@ export async function setOrderStatus(order: Order, status: OrderStatus): Promise
   const labels: Record<OrderStatus, string> = { pending: "Pendiente", preparing: "En preparación", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado", refunded: "Devuelto" };
   return perform<Order>({ id: uuid(), kind: "order.status", at, user: { id: user.id, name: user.name }, label: `Pedido #${order.daily_number} → ${labels[status]}`, target: refOf(order), status }, local,
     (o) => { bus.emit("order:updated", o); if (status === "cancelled") bus.emit("stock:updated", { item_type: "product", item: null }); });
+}
+
+/**
+ * Mesas: el cliente de la mesa sigue pidiendo. Los productos se añaden como una ronda más del mismo pedido
+ * (una sola cuenta, un solo ticket) y la cocina vuelve a recibirlo con lo nuevo por preparar.
+ */
+export async function addOrderItems(order: Order, lines: CartLine[], products: Product[]): Promise<Done<Order>> {
+  const user = me();
+  if (!["admin", "cajero"].includes(user.role)) throw new ApiError(403, "Sin permisos");
+  if (!lines.length) throw new ApiError(400, "No hay productos que agregar");
+  if (order.paid) throw new ApiError(400, "La cuenta ya está pagada");
+  if (["cancelled", "refunded"].includes(order.status)) throw new ApiError(400, "El pedido ya está cerrado");
+  for (const l of lines) {
+    const p = products.find((x) => x.id === l.product.id);
+    if (p && p.track_stock && p.stock < l.qty) throw new ApiError(400, `Stock insuficiente de ${p.name} (quedan ${p.stock})`);
+  }
+  const at = nowISO();
+  const round = order.items.reduce((m, i) => Math.max(m, i.round || 1), 1) + 1;
+  const items: OrderItem[] = lines.map((l) => ({ product_id: l.product.id, name: l.product.name, emoji: l.product.emoji, price: lineUnitPrice(l), qty: l.qty, notes: l.notes, options: l.options || [], round, added_at: at }));
+  // Same arithmetic as the server: the discount already applied to the account is kept and the tax is recalculated.
+  const merged = [...order.items, ...items];
+  const subtotal = +merged.reduce((sum, i) => sum + i.price * i.qty, 0).toFixed(2);
+  const discount = Math.min(subtotal, Math.max(0, order.discount || 0));
+  const tax = +(((subtotal - discount) * (useSettings.getState().settings?.tax_rate || 0)) / 100).toFixed(2);
+  const totals = { subtotal, discount, tax, total: +(subtotal - discount + tax).toFixed(2) };
+  const local: Order = {
+    ...order, items: merged, ...totals, updated_at: at, pending: true,
+    status: order.status === "ready" ? "pending" : order.status, ready_at: order.status === "ready" ? null : order.ready_at,
+  };
+  const units = lines.reduce((n, l) => n + l.qty, 0);
+  return perform<Order>({ id: uuid(), kind: "order.items", at, user: { id: user.id, name: user.name }, label: `+${units} ${units === 1 ? "producto" : "productos"} · Pedido #${order.daily_number}`, target: refOf(order), items, totals }, local,
+    (o) => { bus.emit("order:updated", o); bus.emit("stock:updated", { item_type: "product", item: null }); });
+}
+
+/**
+ * Cobrar una mesa: todas las cuentas abiertas de esa mesa se pagan con el mismo método y, las que ya estaban
+ * listas, se dan por entregadas. Cada pedido se cobra por separado (así la caja y los reportes cuadran) y el
+ * cambio se registra en el primero, que es el que lleva el ticket del total recibido.
+ */
+export async function payTable(orders: Order[], payment_method: PaymentMethod, cash_received: number | null): Promise<Done<Order[]>> {
+  const open = orders.filter((o) => !o.paid);
+  if (!open.length) throw new ApiError(400, "La mesa no tiene nada pendiente de cobro");
+  const total = +open.reduce((s, o) => s + o.total, 0).toFixed(2);
+  if (payment_method === "cash" && cash_received != null && cash_received < total) throw new ApiError(400, "El monto recibido es menor al total");
+  const extra = payment_method === "cash" && cash_received != null ? Math.max(0, +(cash_received - total).toFixed(2)) : 0;
+  const out: Order[] = [];
+  let queued = false;
+  for (const [i, o] of open.entries()) {
+    const received = payment_method === "cash" ? +(o.total + (i === 0 ? extra : 0)).toFixed(2) : null;
+    const paid = await payOrder(o, payment_method, received);
+    queued = queued || paid.queued;
+    let done = paid.result;
+    if (done.status === "ready") {
+      const delivered = await setOrderStatus(done, "delivered");
+      queued = queued || delivered.queued;
+      done = delivered.result;
+    }
+    out.push(done);
+  }
+  return { result: out, queued };
 }
 
 // ---------------------------------------------------------------- cash register

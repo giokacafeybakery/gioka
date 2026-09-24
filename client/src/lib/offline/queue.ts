@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { idb } from "./idb";
 import { bus } from "./bus";
-import type { CashSession, Ingredient, Order, OrderStatus, PaymentMethod } from "@/lib/types";
+import type { CashSession, Ingredient, Order, OrderItem, OrderStatus, PaymentMethod } from "@/lib/types";
 import type { Movement } from "@/app/store";
 
 /**
@@ -18,11 +18,13 @@ interface Base { id: string; seq: number; at: string; user: { id: number; name: 
 export interface OrderCreateOp extends Base { kind: "order.create"; body: Record<string, unknown>; local: Order }
 export interface OrderPayOp extends Base { kind: "order.pay"; target: Ref; payment_method: PaymentMethod; cash_received: number | null }
 export interface OrderStatusOp extends Base { kind: "order.status"; target: Ref; status: OrderStatus }
+/** Mesas: una ronda más sobre una cuenta abierta. `totals` son los del pedido ya recalculados con los productos nuevos. */
+export interface OrderItemsOp extends Base { kind: "order.items"; target: Ref; items: OrderItem[]; totals: { subtotal: number; discount: number; tax: number; total: number } }
 export interface CashOpenOp extends Base { kind: "cash.open"; opening_amount: number; notes: string; local: CashSession }
 export interface CashCloseOp extends Base { kind: "cash.close"; target: Ref; closing_amount: number; notes: string }
 export interface StockAdjustOp extends Base { kind: "stock.adjust"; item_type: "product" | "ingredient"; target: Ref; qty: number; set: boolean; base_stock: number; reason: string; notes: string; photo: string | null; local: Movement }
 export interface IngredientCreateOp extends Base { kind: "ingredient.create"; body: Record<string, unknown>; local: Ingredient; photo: string | null }
-export type Op = OrderCreateOp | OrderPayOp | OrderStatusOp | CashOpenOp | CashCloseOp | StockAdjustOp | IngredientCreateOp;
+export type Op = OrderCreateOp | OrderPayOp | OrderStatusOp | OrderItemsOp | CashOpenOp | CashCloseOp | StockAdjustOp | IngredientCreateOp;
 /** An op as built by the actions layer (seq/state/tries are assigned by enqueue). Distributive so each kind keeps its own fields. */
 export type DraftOp = Op extends infer O ? (O extends Op ? Omit<O, "seq" | "state" | "tries"> : never) : never;
 

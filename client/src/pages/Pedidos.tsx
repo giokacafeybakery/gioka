@@ -106,9 +106,19 @@ export default function Pedidos() {
         </div>
         <ul className="mt-3 space-y-1">
           {o.items.map((it, i) => (
-            <li key={i} className="flex gap-2 text-[15px] leading-snug">
-              <span className="font-black w-7 shrink-0 text-peach-2">{it.qty}×</span>
-              <span className="font-bold">{it.name}{optionsSummary(it.options) && <span className="block text-[13px] text-peach-2 font-extrabold">{optionsSummary(it.options)}</span>}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span>
+            <li key={i}>
+              {/* Mesa que siguió pidiendo: la cocina ve dónde empieza cada ronda nueva. */}
+              {(it.round || 1) > 1 && (it.round || 1) !== (o.items[i - 1]?.round || 1) && (
+                <div className="flex items-center gap-2 mt-2 mb-1 text-[11px] font-black uppercase tracking-wider text-mint-2">
+                  <span className="px-2 py-0.5 rounded-full bg-mint-soft">Ronda {it.round}</span>
+                  <span className="flex-1 border-b border-dashed border-mint/40" />
+                  {it.added_at && <span className="text-muted font-extrabold normal-case tracking-normal">{time(it.added_at)}</span>}
+                </div>
+              )}
+              <div className="flex gap-2 text-[15px] leading-snug">
+                <span className="font-black w-7 shrink-0 text-peach-2">{it.qty}×</span>
+                <span className="font-bold">{it.name}{optionsSummary(it.options) && <span className="block text-[13px] text-peach-2 font-extrabold">{optionsSummary(it.options)}</span>}{it.notes && <span className="block text-xs text-berry font-extrabold">» {it.notes}</span>}</span>
+              </div>
             </li>
           ))}
         </ul>
