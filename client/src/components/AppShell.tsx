@@ -8,6 +8,7 @@ import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
 import { logout as endSession } from "@/lib/actions";
 import { SyncButton } from "./SyncStatus";
+import { PrintStationButton, usePrintStationWatch, canPrint } from "./PrintStation";
 import { useSocket } from "@/lib/socket";
 import type { LowStock, Role } from "@/lib/types";
 import { toast } from "@/store/toast";
@@ -20,6 +21,9 @@ export default function AppShell() {
   const load = useSettings((s) => s.load);
   const [low, setLow] = useState(0);
   const [confirmOut, setConfirmOut] = useState(false);
+
+  // Caja/admin: este dispositivo puede imprimir solo las comandas que mandan los meseros.
+  usePrintStationWatch();
 
   useEffect(() => { load().catch(() => {}); }, [load]);
   useEffect(() => {
@@ -77,6 +81,7 @@ export default function AppShell() {
           <MonitorPlay size={22} />
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>
         </a>
+        {canPrint(user?.role) && <PrintStationButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />}
         <SyncButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />
         <button onClick={() => setConfirmOut(true)} className="flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Salir">
           <LogOut size={22} />
@@ -88,6 +93,7 @@ export default function AppShell() {
         <Wordmark height={26} color="#FFFDF8" />
         <div className="flex items-center gap-1">
           {!!low && <NavLink to="/inventario" className="relative w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10"><Bell size={20} /><span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-berry text-[10px] font-black grid place-items-center">{low}</span></NavLink>}
+          {canPrint(user?.role) && <PrintStationButton light className="w-10 h-10 rounded-xl hover:bg-white/10" />}
           <SyncButton light className="w-10 h-10 rounded-xl hover:bg-white/10" />
           <button onClick={() => setConfirmOut(true)} className="w-10 h-10 grid place-items-center rounded-xl hover:bg-white/10" aria-label="Salir"><LogOut size={20} /></button>
         </div>

@@ -8,8 +8,14 @@ import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
 import { toast } from "@/store/toast";
 
-interface PrintState { job: { order: Order; kitchen: boolean } | null; set: (job: PrintState["job"]) => void }
-const usePrint = create<PrintState>()((set) => ({ job: null, set: (job) => set({ job }) }));
+interface PrintJob { order: Order; kitchen: boolean }
+/** Cola: varios tickets seguidos (comanda + ticket, o dos pedidos a la vez) se imprimen uno tras otro. */
+interface PrintState { jobs: PrintJob[]; push: (job: PrintJob) => void; done: () => void }
+const usePrint = create<PrintState>()((set) => ({
+  jobs: [],
+  push: (job) => set((s) => ({ jobs: [...s.jobs, job] })),
+  done: () => set((s) => ({ jobs: s.jobs.slice(1) })),
+}));
 
 /** Print an order: network (ESC/POS via server) or browser dialog (80mm CSS). */
 export async function printOrder(order: Order, { kitchen = false, silent = false } = {}) {
@@ -24,7 +30,7 @@ export async function printOrder(order: Order, { kitchen = false, silent = false
     }
     return;
   }
-  usePrint.getState().set({ order, kitchen });
+  usePrint.getState().push({ order, kitchen });
 }
 
 const m = (n: number, cur: string) => `${cur}${Number(n || 0).toFixed(2)}`;
@@ -118,13 +124,14 @@ export function ReceiptView({ order, settings, kitchen = false }: { order: Order
 
 /** Mounted once in App. Renders the pending job into #print-root and opens the print dialog. */
 export function PrintHost() {
-  const job = usePrint((s) => s.job);
+  const job = usePrint((s) => s.jobs[0] || null);
   const settings = useSettings((s) => s.settings);
   useEffect(() => {
     if (!job || !settings) return;
+    // El navegador bloquea el hilo mientras el diálogo está abierto; al volver, sacamos el trabajo
+    // de la cola y el siguiente se monta y se imprime solo.
     const t = setTimeout(() => {
-      window.print();
-      usePrint.getState().set(null);
+      try { window.print(); } finally { usePrint.getState().done(); }
     }, 150);
     return () => clearTimeout(t);
   }, [job, settings]);

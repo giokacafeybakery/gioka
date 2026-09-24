@@ -12,6 +12,7 @@ import { enqueue, pendingCount, failedCount, refOf, uuid, type Op, type DraftOp 
 import { sendOp } from "@/lib/offline/sync";
 import { nextDailyNumber } from "@/lib/offline/project";
 import { vault } from "@/lib/offline/vault";
+import { markLocalOrder } from "@/lib/printStation";
 
 /**
  * Domain actions used by the screens. Every write goes through here:
@@ -107,6 +108,9 @@ export async function createOrder(input: NewOrder): Promise<Done<Order>> {
     type: input.type, customer_name: input.customer_name, customer_phone: input.customer_phone, table_no: input.table_no, ...(input.extra || {}), notes: input.notes, discount: input.discount,
     payment_method: paid ? input.payment_method : null, cash_received, items: items.map((i) => ({ product_id: i.product_id, qty: i.qty, notes: i.notes, price: i.price, options: i.options })),
   };
+  // El pedido nace en este dispositivo: ni el eco de Realtime ni el bus local deben hacer que la
+  // estación de impresión lo imprima otra vez (el `client_id` viaja al servidor y vuelve en el evento).
+  markLocalOrder(local);
   return perform<Order>({ id, kind: "order.create", at, user: { id: user.id, name: user.name }, label: `Pedido #${local.daily_number} · ${money(local.total)}`, body, local }, local,
     (o) => { bus.emit("order:created", o); bus.emit("stock:updated", { item_type: "product", item: null }); });
 }
