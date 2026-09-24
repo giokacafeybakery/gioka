@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Printer, Wifi, Check } from "lucide-react";
+import { Printer, Wifi, Check, MonitorPlay } from "lucide-react";
 import { Modal, Toggle } from "./ui";
+import { PrintSetupGuide } from "./PrintSetupGuide";
 import { printOrder } from "./Receipt";
 import { usePrintStation, isLocalOrder, claimPrint } from "@/lib/printStation";
 import { useSocket } from "@/lib/socket";
@@ -86,6 +87,7 @@ function testOrder(): Order {
 /** Botón de la barra lateral: abre los ajustes de impresión de ESTE dispositivo. */
 export function PrintStationButton({ className = "", light = false }: { className?: string; light?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [guide, setGuide] = useState(false);
   const cfg = usePrintStation((s) => s.cfg);
   const set = usePrintStation((s) => s.set);
   const settings = useSettings((s) => s.settings);
@@ -132,16 +134,20 @@ export function PrintStationButton({ className = "", light = false }: { classNam
             <button className="btn-soft w-full mt-4" onClick={() => printOrder(testOrder(), { kitchen: true })}>
               <Printer size={16} /> Imprimir comanda de prueba
             </button>
-            <div className="mt-4 rounded-2xl bg-cream p-4 text-xs font-semibold text-muted leading-relaxed">
-              <div className="flex gap-2"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Deja el navegador abierto en esta computadora: cerrado no hay impresión.</div>
-              <div className="flex gap-2 mt-1.5"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Si no reconecta solo, cada minuto revisa los pedidos y saca las comandas que falten.</div>
-              <div className="mt-3 font-black text-ink">Para que no salga el diálogo de Windows</div>
-              <div className="mt-1">Crea un acceso directo de Chrome, entra en Propiedades y deja el destino así (la impresora predeterminada de Windows debe ser la térmica):</div>
-              <code className="block mt-2 p-2 rounded-lg bg-paper border border-line text-[11px] text-ink break-all select-all">"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing</code>
+            <div className="mt-4 rounded-2xl bg-cream p-4">
+              <div className="flex gap-2 text-xs font-semibold text-muted leading-relaxed"><Check size={14} className="shrink-0 mt-0.5 text-mint-2" /> Deja el navegador abierto en esta computadora: cerrado no hay impresión. Si algún aviso no llega, cada minuto revisa los pedidos y saca las comandas que falten.</div>
+              <div className="mt-3 pt-3 border-t border-line flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-black text-sm">Que no salga el diálogo de Windows</div>
+                  <div className="text-xs font-semibold text-muted">Se configura una sola vez en esta computadora.</div>
+                </div>
+                <button className="btn-soft btn-sm shrink-0" onClick={() => setGuide(true)}><MonitorPlay size={15} /> Ver cómo</button>
+              </div>
             </div>
           </>
         )}
       </Modal>
+      <PrintSetupGuide open={guide} onClose={() => setGuide(false)} />
     </>
   );
 }
