@@ -129,6 +129,63 @@ const StepTarget = () => (
   </Frame>
 );
 
+/* Paso 4 — cerrar Chrome por completo (si no, la opción se ignora) */
+const StepClose = () => (
+  <Frame>
+    <Win title="Administrador de tareas" className="w-[92%]">
+      <div className="p-2.5">
+        <div className="flex items-center gap-2 pb-1.5 border-b border-black/10 text-[8px] font-bold text-black/50">
+          <span className="flex-1">Nombre</span><span className="w-10 text-right">CPU</span><span className="w-12 text-right">Memoria</span>
+        </div>
+        <div className="mt-1.5 rounded-md bg-[#eaf1fa] border border-[#005fb8]/40 p-1.5 flex items-center gap-2">
+          <span className="w-4 h-4 rounded-full border-2 border-[#e34133] border-r-[#f9bc05] border-b-[#34a853]" />
+          <span className="flex-1 text-[8.5px] font-bold text-black/75">Google Chrome (8)</span>
+          <span className="w-10 text-right text-[8px] text-black/55">2,1 %</span>
+          <span className="w-12 text-right text-[8px] text-black/55">840 MB</span>
+        </div>
+        {["Explorador de Windows", "Widgets"].map((x) => (
+          <div key={x} className="p-1.5 flex items-center gap-2 opacity-45">
+            <span className="w-4 h-4 rounded bg-black/15" />
+            <span className="flex-1 text-[8.5px] text-black/70">{x}</span>
+          </div>
+        ))}
+        <div className="flex justify-end pt-1">
+          <Spot><span className="block text-[8px] font-bold text-white bg-[#005fb8] rounded px-2.5 py-1">Finalizar tarea</span></Spot>
+        </div>
+      </div>
+      <Cursor className="right-[7%] bottom-[7%]" />
+    </Win>
+  </Frame>
+);
+
+/* Paso 5 — comprobar en chrome://version que la opción quedó activa */
+const StepVerify = () => (
+  <Frame>
+    <Win title="Acerca de la versión" className="w-[92%]">
+      <div className="px-2.5 pt-2">
+        <div className="flex items-center gap-1.5">
+          <span className="w-4 h-4 rounded-full bg-black/[0.06] grid place-items-center text-[7px] text-black/50">↻</span>
+          <span className="flex-1 rounded-full bg-black/[0.05] px-2 py-1 font-mono text-[7.5px] text-black/60">chrome://version</span>
+        </div>
+        <div className="mt-2 pb-2.5 space-y-1.5">
+          <div className="flex gap-2"><span className="w-16 text-[8px] font-bold text-black/55 text-right shrink-0">Chrome</span><span className="text-[8px] text-black/60">151.0.7922.34 (64 bits)</span></div>
+          <div className="flex gap-2">
+            <span className="w-16 text-[8px] font-bold text-black/55 text-right shrink-0">Línea de comandos</span>
+            <Spot className="flex-1">
+              <span className="block w-full rounded bg-white border border-black/15 px-1.5 py-1 font-mono text-[7.5px] leading-relaxed text-black/60 break-all">
+                C:\Program Files\Google\Chrome\Application\chrome.exe
+                <span className="text-peach-2 font-bold"> --kiosk-printing</span>
+                <span className="text-black/35"> --flag-switches-begin --flag-switches-end</span>
+              </span>
+            </Spot>
+          </div>
+          <div className="flex gap-2"><span className="w-16 text-[8px] font-bold text-black/55 text-right shrink-0">Perfil</span><span className="text-[8px] text-black/45">C:\Users\Caja\AppData\Local\Google\Chrome\User Data\Default</span></div>
+        </div>
+      </div>
+    </Win>
+  </Frame>
+);
+
 /* Paso 4 — cómo se ve cuando ya funciona */
 const StepResult = () => (
   <Frame>
@@ -174,7 +231,7 @@ export function PrintSetupGuide({ open, onClose }: { open: boolean; onClose: () 
   const steps: Step[] = [
     {
       title: "La térmica, como predeterminada",
-      body: <>En Windows abre <b>Configuración → Bluetooth y dispositivos → Impresoras y escáneres</b>, entra en tu impresora térmica y toca <b>Establecer como predeterminada</b>. Chrome imprimirá siempre en ella.</>,
+      body: <>En Windows abre <b>Configuración → Bluetooth y dispositivos → Impresoras y escáneres</b>, entra en tu impresora térmica y toca <b>Establecer como predeterminada</b>. Más abajo <b>desactiva</b> «Permitir que Windows administre mi impresora predeterminada»: si no, Windows la cambia sola y el ticket termina en «Guardar como PDF».</>,
       art: <StepPrinter />,
     },
     {
@@ -188,8 +245,18 @@ export function PrintSetupGuide({ open, onClose }: { open: boolean; onClose: () 
       art: <StepTarget />,
     },
     {
-      title: "Abre Gioka desde ese acceso directo",
-      body: <>Cierra Chrome por completo y vuelve a abrirlo con ese ícono. Entra a Gioka, activa la estación y manda la <b>comanda de prueba</b>: debe salir sola, sin la ventana de impresión.</>,
+      title: "Cierra Chrome por completo",
+      body: <>Este es el paso que casi siempre falla. La opción solo vale para un Chrome <b>recién abierto</b>: si queda una ventana —o Chrome sigue corriendo junto al reloj, en segundo plano— el acceso directo abre una pestaña del Chrome viejo y la opción se ignora. Cierra todo y, en el <b>Administrador de tareas</b> (Ctrl+Shift+Esc), finaliza «Google Chrome» si todavía aparece.</>,
+      art: <StepClose />,
+    },
+    {
+      title: "Comprueba que quedó activo",
+      body: <>Abre Chrome <b>desde ese acceso directo</b> y entra a <b>chrome://version</b>. En «Línea de comandos» tiene que aparecer <b>--kiosk-printing</b>. Si no aparece, Chrome no se cerró del todo o abriste otro ícono: repite el paso anterior.</>,
+      art: <StepVerify />,
+    },
+    {
+      title: "Listo: la comanda sale sola",
+      body: <>Entra a Gioka desde ese Chrome, activa la estación y manda la <b>comanda de prueba</b>: debe salir en la térmica sin ninguna ventana. Si todavía ves el diálogo con «Guardar como PDF», la impresora predeterminada no es la térmica (paso 1).</>,
       art: <StepResult />,
     },
   ];
