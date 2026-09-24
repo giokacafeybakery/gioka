@@ -6,6 +6,7 @@ import { useAuth } from "@/store/auth";
 import { logout as endSession } from "@/lib/actions";
 import { useSyncSummary, SyncPanel } from "@/components/SyncStatus";
 import { ROLE } from "@/lib/format";
+import { homeFor, setUiPreference } from "@/lib/nav";
 import { useInventory } from "../store";
 import { Screen, Card, listVariants, rowVariants } from "../ui";
 import { Modal } from "@/components/ui";
@@ -23,8 +24,17 @@ export default function Profile() {
 
   const doLogout = async () => { setConfirmOpen(false); await endSession(); nav("/login", { replace: true }); };
 
+  // El admin trabaja en los dos lados: desde el teléfono puede pasarse a la versión de escritorio
+  // (PDV, reportes, administración) y el dispositivo recuerda su elección.
+  const toDesktop = () => { setUiPreference("desktop"); nav(homeFor(user!.role), { replace: true }); };
+
   return (
-    <Screen title="Perfil">
+    <Screen title="Perfil" right={user?.role === "admin" ? (
+      <motion.button whileTap={{ scale: 0.9 }} onClick={toDesktop} aria-label="Versión de escritorio" title="Versión de escritorio"
+        className="w-10 h-10 rounded-full grid place-items-center bg-white text-ink shadow-app">
+        <Monitor size={20} strokeWidth={2.2} />
+      </motion.button>
+    ) : undefined}>
       <motion.div variants={listVariants} initial="hidden" animate="show" className="space-y-3 pb-28">
         <motion.div variants={rowVariants}>
           <Card className="p-4 flex items-center gap-4">

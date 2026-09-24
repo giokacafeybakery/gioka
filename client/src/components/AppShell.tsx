@@ -7,6 +7,7 @@ import { useAuth } from "@/store/auth";
 import { useSettings } from "@/store/settings";
 import { api } from "@/lib/api";
 import { logout as endSession } from "@/lib/actions";
+import { setUiPreference } from "@/lib/nav";
 import { SyncButton } from "./SyncStatus";
 import { PrintStationButton, usePrintStationWatch, canPrint } from "./PrintStation";
 import { useSocket } from "@/lib/socket";
@@ -54,6 +55,9 @@ export default function AppShell() {
     nav("/login");
   };
 
+  // Vuelta a la app móvil de inventario (el Perfil de esa app tiene el botón inverso).
+  const toMobile = () => { setUiPreference("mobile"); nav("/app"); };
+
   const confirmLogout = () => {
     setConfirmOut(false);
     void doLogout();
@@ -81,6 +85,12 @@ export default function AppShell() {
           <MonitorPlay size={22} />
           <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Pantalla de clientes</span>
         </a>
+        {(user?.role === "admin" || user?.role === "inventario") && (
+          <button onClick={toMobile} className="group relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Versión móvil">
+            <Smartphone size={22} />
+            <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-ink text-white text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition shadow-lift z-20">Versión móvil</span>
+          </button>
+        )}
         {canPrint(user?.role) && <PrintStationButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />}
         <SyncButton light className="w-12 h-12 rounded-2xl hover:bg-white/10" />
         <button onClick={() => setConfirmOut(true)} className="flex items-center justify-center w-12 h-12 rounded-2xl text-white/55 hover:text-white hover:bg-white/10 transition" title="Salir">
